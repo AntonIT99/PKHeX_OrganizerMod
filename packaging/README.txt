@@ -11,8 +11,15 @@ Type-Optimized Box Allocation always shows a complete preview before applying ch
 and does not save the edited save file to disk automatically.
 Its optional matching backgrounds are disabled by default and, when supported by
 the loaded game, are included in the same preview and rollback-protected operation.
+Optional Legendary grouping uses PKHeX's Legendary and Sub-Legendary categories
+and reserves dedicated boxes whose capacity impact is validated before preview.
+Competitive / Progress Organizer groups by training state, level bands, or EXP.
+Custom Rule-Based Organizer supports two ordered grouping and four sorting rules.
 Living Dex Sorting preserves duplicates in overflow, reports missing entries, and
 uses the same preview, confirmation, snapshot, and rollback safeguards.
+Smart Team Builder exchanges complete existing Pokémon between the current Team and
+selected boxes using eligibility filters, ordered preferences, a complete preview,
+stale-plan validation, and snapshot rollback.
 PKM Database Import can optionally compare same PIDs with Team and Pension Pokémon;
 Pension is read-only, while explicit opt-ins can replace matching Team members or
 use free Team slots before selected boxes.

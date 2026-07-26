@@ -416,23 +416,135 @@ public sealed class TypeBoxOrganizationPlannerTests
         }
     }
 
+    [Fact]
+    public void LegendaryGroupingDisabledLeavesPokemonInTypeGroups()
+    {
+        var pokemon = new[] { Pokemon(0, PokemonElementType.Psychic, legendary: true) };
+
+        var plan = Plan(pokemon, 1, groupLegendaries: false);
+
+        var box = Assert.Single(plan.Boxes);
+        Assert.False(box.IsLegendary);
+        Assert.Equal(PokemonElementType.Psychic, box.SharedType);
+        Assert.Equal(0, plan.Summary.LegendaryPokemon);
+    }
+
+    [Fact]
+    public void LegendaryGroupingCombinesDifferentTypesInDedicatedBox()
+    {
+        var pokemon = new[]
+        {
+            Pokemon(0, PokemonElementType.Psychic, legendary: true),
+            Pokemon(1, PokemonElementType.Water, legendary: true),
+            Pokemon(2, PokemonElementType.Fire),
+        };
+
+        var plan = Plan(pokemon, 2, groupLegendaries: true);
+
+        Assert.True(plan.IsValid);
+        var legendary = Assert.Single(plan.Boxes, box => box.IsLegendary);
+        Assert.Null(legendary.SharedType);
+        Assert.False(legendary.IsMixed);
+        Assert.Equal(2, legendary.Pokemon.Count);
+        Assert.All(
+            plan.Assignments.Where(item => item.IsLegendary),
+            item => Assert.Null(item.AssignedType));
+        Assert.Equal(1, plan.Summary.LegendaryBoxes);
+        Assert.Equal(2, plan.Summary.LegendaryPokemon);
+    }
+
+    [Fact]
+    public void ThirtyOneLegendariesCreateTwoAdjacentDedicatedBoxes()
+    {
+        var pokemon = Enumerable.Range(0, 31)
+            .Select(id => Pokemon(id, PokemonElementType.Psychic, legendary: true))
+            .ToArray();
+
+        var plan = Plan(pokemon, 2, groupLegendaries: true);
+
+        Assert.Equal(2, plan.Summary.LegendaryBoxes);
+        Assert.Equal([30, 1], plan.Boxes.Select(box => box.Pokemon.Count));
+        Assert.All(plan.Boxes, box => Assert.True(box.IsLegendary));
+    }
+
+    [Fact]
+    public void DedicatedLegendaryBoxCapacityIsValidatedBeforePlanning()
+    {
+        var pokemon = new[] { Pokemon(0, PokemonElementType.Psychic, legendary: true) }
+            .Concat(Many(1, 31, PokemonElementType.Water))
+            .ToArray();
+
+        var plan = Plan(pokemon, 2, groupLegendaries: true);
+
+        Assert.False(plan.IsValid);
+        Assert.Empty(plan.Assignments);
+        Assert.Contains("Grouping 1 Legendary Pokémon separately", Assert.Single(plan.Errors));
+    }
+
+    [Fact]
+    public void LegendaryBoxesAreNamedAndNumberedWhenRenamingIsEnabled()
+    {
+        var pokemon = Enumerable.Range(0, 31)
+            .Select(id => Pokemon(id, PokemonElementType.Psychic, legendary: true))
+            .ToArray();
+
+        var plan = Plan(
+            pokemon,
+            2,
+            rename: true,
+            names: ["A", "B"],
+            groupLegendaries: true);
+
+        Assert.Equal(["Legendary 1", "Legendary 2"], plan.RenameOperations.Select(item => item.NewName));
+    }
+
+    [Fact]
+    public void LegendaryGroupingIntegratesWithRenamingAndBackgroundPlanning()
+    {
+        var pokemon = new[]
+        {
+            Pokemon(0, PokemonElementType.Psychic, legendary: true),
+            Pokemon(1, PokemonElementType.Water),
+        };
+        var boxes = new[] { new BoxState(0, "A"), new BoxState(1, "B") };
+        var options = new TypeBoxOrganizerOptions(
+            TypeBoxLayoutMode.ExpandedByType,
+            renameBoxes: true,
+            assignMatchingBackgrounds: true,
+            rotateAlternativeBackgrounds: true,
+            supportedBackgroundThemes: Enum.GetValues<BoxBackgroundTheme>().ToHashSet(),
+            groupLegendaries: true);
+
+        var plan = planner.CreatePlan(pokemon, boxes, options);
+
+        Assert.True(plan.IsValid);
+        Assert.Equal("Legendary", plan.RenameOperations.Single(item => item.BoxIndex == 0).NewName);
+        Assert.Equal(
+            BoxBackgroundTheme.PokemonCenter,
+            plan.BackgroundThemes.Single(item => item.BoxIndex == 0).Theme);
+        Assert.Equal(2, plan.Assignments.Select(item => item.Pokemon).Distinct().Count());
+        Assert.Equal(2, plan.Assignments.Select(item => (item.TargetBoxIndex, item.TargetSlotIndex)).Distinct().Count());
+    }
+
     private TypeOrganizationPlan Plan(
         IReadOnlyList<OrganizablePokemon> pokemon,
         int boxCount,
         TypeBoxLayoutMode mode = TypeBoxLayoutMode.Compact,
         bool rename = false,
-        IReadOnlyList<string>? names = null)
+        IReadOnlyList<string>? names = null,
+        bool groupLegendaries = false)
     {
         var boxes = Enumerable.Range(0, boxCount)
             .Select(index => new BoxState(index, names?[index] ?? $"Box {index + 1}"))
             .ToArray();
-        return planner.CreatePlan(pokemon, boxes, Options(mode, rename));
+        return planner.CreatePlan(pokemon, boxes, Options(mode, rename, groupLegendaries));
     }
 
     private static TypeBoxOrganizerOptions Options(
         TypeBoxLayoutMode mode,
-        bool rename = false) =>
-        new(mode, rename);
+        bool rename = false,
+        bool groupLegendaries = false) =>
+        new(mode, rename, groupLegendaries: groupLegendaries);
 
     private static OrganizablePokemon[] Many(
         int firstId,
@@ -454,7 +566,8 @@ public sealed class TypeBoxOrganizationPlannerTests
         PokemonElementType primary,
         PokemonElementType? secondary = null,
         int sourceBox = -1,
-        int sourceSlot = -1)
+        int sourceSlot = -1,
+        bool legendary = false)
     {
         if (sourceBox < 0)
             sourceBox = id / 30;
@@ -467,6 +580,7 @@ public sealed class TypeBoxOrganizationPlannerTests
             gender: id % 2,
             isShiny: id % 17 == 0,
             primary,
-            secondary);
+            secondary,
+            isLegendary: legendary);
     }
 }

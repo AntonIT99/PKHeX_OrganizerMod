@@ -57,7 +57,8 @@ public sealed record OrganizablePokemon
         bool isShiny,
         PokemonElementType primaryType,
         PokemonElementType? secondaryType = null,
-        PokemonElementType? preferredType = null)
+        PokemonElementType? preferredType = null,
+        bool isLegendary = false)
     {
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(species);
@@ -79,6 +80,7 @@ public sealed record OrganizablePokemon
         PreferredType = preferredType is not null && CanHaveType(primaryType, SecondaryType, preferredType.Value)
             ? preferredType
             : null;
+        IsLegendary = isLegendary;
     }
 
     public PokemonReference Reference { get; }
@@ -89,6 +91,7 @@ public sealed record OrganizablePokemon
     public PokemonElementType PrimaryType { get; }
     public PokemonElementType? SecondaryType { get; }
     public PokemonElementType? PreferredType { get; }
+    public bool IsLegendary { get; }
     public bool IsDualType => SecondaryType is not null;
 
     public bool CanBeAssignedTo(PokemonElementType type) =>
@@ -132,7 +135,8 @@ public sealed record TypeBoxOrganizerOptions
         IReadOnlyDictionary<PokemonElementType, string>? typeNames = null,
         bool assignMatchingBackgrounds = false,
         bool rotateAlternativeBackgrounds = false,
-        IReadOnlySet<BoxBackgroundTheme>? supportedBackgroundThemes = null)
+        IReadOnlySet<BoxBackgroundTheme>? supportedBackgroundThemes = null,
+        bool groupLegendaries = false)
     {
         if (!Enum.IsDefined(layoutMode))
             throw new ArgumentOutOfRangeException(nameof(layoutMode));
@@ -148,6 +152,7 @@ public sealed record TypeBoxOrganizerOptions
         RotateAlternativeBackgrounds = assignMatchingBackgrounds && rotateAlternativeBackgrounds;
         SupportedBackgroundThemes = new HashSet<BoxBackgroundTheme>(
             supportedBackgroundThemes ?? new HashSet<BoxBackgroundTheme>());
+        GroupLegendaries = groupLegendaries;
     }
 
     public TypeBoxLayoutMode LayoutMode { get; }
@@ -157,6 +162,7 @@ public sealed record TypeBoxOrganizerOptions
     public bool AssignMatchingBackgrounds { get; }
     public bool RotateAlternativeBackgrounds { get; }
     public IReadOnlySet<BoxBackgroundTheme> SupportedBackgroundThemes { get; }
+    public bool GroupLegendaries { get; }
 }
 
 public sealed record TypeSlotAssignment(
@@ -164,7 +170,8 @@ public sealed record TypeSlotAssignment(
     int TargetBoxIndex,
     int TargetSlotIndex,
     PokemonElementType? AssignedType,
-    bool IsMixed);
+    bool IsMixed,
+    bool IsLegendary = false);
 
 public sealed record TypeBoxAssignment
 {
@@ -172,25 +179,30 @@ public sealed record TypeBoxAssignment
         int targetBoxIndex,
         PokemonElementType? sharedType,
         IEnumerable<PokemonReference> pokemon,
-        bool isMixed)
+        bool isMixed,
+        bool isLegendary = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(targetBoxIndex);
         ArgumentNullException.ThrowIfNull(pokemon);
-        if (isMixed && sharedType is not null)
-            throw new ArgumentException("A mixed box cannot declare a shared type.", nameof(sharedType));
-        if (!isMixed && sharedType is null)
+        if ((isMixed || isLegendary) && sharedType is not null)
+            throw new ArgumentException("A mixed or Legendary box cannot declare a shared type.", nameof(sharedType));
+        if (!isMixed && !isLegendary && sharedType is null)
             throw new ArgumentException("A type box must declare its shared type.", nameof(sharedType));
+        if (isMixed && isLegendary)
+            throw new ArgumentException("A box cannot be both mixed and Legendary.", nameof(isLegendary));
 
         TargetBoxIndex = targetBoxIndex;
         SharedType = sharedType;
         Pokemon = new ReadOnlyCollection<PokemonReference>(pokemon.ToArray());
         IsMixed = isMixed;
+        IsLegendary = isLegendary;
     }
 
     public int TargetBoxIndex { get; }
     public PokemonElementType? SharedType { get; }
     public IReadOnlyList<PokemonReference> Pokemon { get; }
     public bool IsMixed { get; }
+    public bool IsLegendary { get; }
 }
 
 public sealed record BoxRenameOperation(
@@ -205,7 +217,9 @@ public sealed record TypeOrganizationSummary(
     int PokemonInTypeBoxes,
     int PokemonInMixedBoxes,
     int UsedBoxes,
-    int UnusedSlots);
+    int UnusedSlots,
+    int LegendaryBoxes = 0,
+    int LegendaryPokemon = 0);
 
 public readonly record struct AllocationScore(
     int Primary,

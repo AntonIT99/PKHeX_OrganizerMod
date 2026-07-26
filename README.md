@@ -13,34 +13,62 @@ The planner treats dual-type assignment as a global allocation problem. For smal
 
 Type-coherent boxes are presented in this fixed order when applicable: Normal, Fire, Water, Electric, Grass, Ice, Fighting, Poison, Ground, Flying, Psychic, Bug, Rock, Ghost, Dragon, Dark, Steel, and Fairy. Multiple boxes assigned to the same type remain adjacent (for example, Water 1 immediately followed by Water 2). Mixed overflow boxes follow the typed boxes.
 
+Optional **Group Legendary Pokémon into dedicated boxes** is unchecked by default. When enabled, Organizer Mod uses PKHeX's maintained `SpeciesCategory.IsLegendary` and `IsSubLegendary` classifications, removes those Pokémon from type optimization, and places them in deterministic National Dex order in one or more dedicated boxes before the typed layout. Mythical Pokémon, Ultra Beasts, and Paradox Pokémon are separate PKHeX categories and remain in their normal type groups. Dedicated boxes consume complete boxes, so the live capacity message and planner account for the otherwise unused remainder; an insufficient selection produces an error rather than mixing Legendary Pokémon back into typed boxes.
+
+When renaming is enabled, dedicated boxes use `Legendary` or `Legendary 1`, `Legendary 2`, and so on, fitted to the save's box-name limit. This category label is currently stable English; localized Pokémon type names remain unchanged. When matching backgrounds are enabled, Legendary boxes prefer Pokémon Center, then Sky, then City, rotating through supported alternatives when requested. Legendary decisions, names, backgrounds, slot assignments, and capacity effects are all shown in the same preview.
+
 The **Boxes to organize** checklist is the feature's explicit source, destination, and preservation boundary: Pokémon currently in selected boxes are reorganized, and only those same boxes may receive the result. Unselected boxes remain byte-for-byte outside the operation. Optional **Rename affected boxes** is unchecked by default. When enabled, localized PKHeX type names are used where available, names are safely fitted to the loaded save format, and every old-to-new name is part of the preview and organization plan.
 
 Optional **Change box backgrounds to match their assigned type** is also unchecked by default and is independent of box renaming. With alternatives disabled, every repeated type box receives its first supported primary theme. With alternatives enabled, repeated boxes rotate deterministically through the supported mapped themes; for example, Water boxes use Deep Sea, River, Beach, then cycle back to Deep Sea. Mixed boxes prefer Checkered and fall back to White. Unsupported themes are skipped, and if none of a box's mappings exist its current background is preserved with a preview warning.
 
 | Type | Prioritized background themes |
 |---|---|
-| Normal | Checkered, White, City |
-| Fire | Volcano, Steppe, Desert |
+| Normal | City, Steppe, Forest |
+| Fire | Volcano, Desert, Rocky |
 | Water | Deep Sea, River, Beach |
-| Electric | City, Pokémon Center, Metal |
+| Electric | Pokémon Center, Metal, City |
 | Grass | Forest, River, Steppe |
-| Ice | Snow, White, Cave |
+| Ice | Snow, Cave, Sky |
 | Fighting | Steppe, Rocky, City |
-| Poison | Cave, City, Deep Sea |
+| Poison | Cave, Deep Sea, Pokémon Center |
 | Ground | Desert, Rocky, Steppe |
-| Flying | Sky, Beach, Steppe |
-| Psychic | Pokémon Center, Sky, White |
-| Bug | Forest, Steppe, River |
+| Flying | Sky, Beach, River |
+| Psychic | River, Pokémon Center, Sky |
+| Bug | Beach, Forest, Steppe |
 | Rock | Rocky, Cave, Desert |
-| Ghost | Cave, White, Pokémon Center |
-| Dragon | Volcano, Sky, Cave |
-| Dark | Cave, City, Metal |
-| Steel | Metal, City, Pokémon Center |
-| Fairy | White, Forest, Sky |
+| Ghost | Cave, Deep Sea, Sky |
+| Dragon | Volcano, Sky, Rocky |
+| Dark | Metal, City, Cave |
+| Steel | Metal, Pokémon Center, City |
+| Fairy | Forest, Sky, Pokémon Center |
 
 Organizer Mod currently enables semantic background assignment only where PKHeX exposes the standard wallpaper catalog reliably: Generation 3 storage saves, Generations 4–7, and Brilliant Diamond/Shining Pearl. Sword/Shield, Legends: Arceus, and Generation 9 expose generation-specific numeric wallpaper catalogs without a reliable shared semantic mapping in the current API, so the option is disabled and existing backgrounds remain untouched. Display names use PKHeX's current localization where available.
 
 The preview reports the mode, usable and used boxes, organized Pokémon, full and partial type boxes, mixed boxes, coherent and mixed Pokémon counts, unused slots, complete proposed layout, box renames, and resolved background changes. Cancel changes nothing. Apply first verifies that every selected slot, box name, and planned original wallpaper still matches the preview, snapshots the save, writes the complete target layout, applies approved names and backgrounds, marks the in-memory save edited, and refreshes PKHeX. A failure restores the complete snapshot. Organizer Mod never saves the file to disk automatically.
+
+## Competitive / Progress Organizer
+
+This strategy organizes only Pokémon in **Boxes to organize** using stable training and progression data from PKHeX. It does not infer Smogon tiers, official formats, or external metagame rankings.
+
+- **Progress Groups** creates Battle Ready, High Level, In Training, Low Level, Eggs, and Invalid groups in that order. Battle Ready requires a valid non-egg at or above the configurable battle-ready level and EV threshold; optional legality and four-non-empty-moves requirements can be enabled. Defaults are level 50 and EV total 508. Remaining valid non-eggs use the configurable high-level and training thresholds, with higher groups taking precedence.
+- **Level Bands** uses configurable strictly increasing boundaries, defaulting to `1–19`, `20–49`, `50–79`, and `80–100`, followed by Eggs and Invalid entries.
+- **Experience Order** sorts valid non-eggs by total experience descending, level descending, National Dex number, form, and original position. Eggs and invalid entries follow without reserving semantic group boundaries.
+
+Progress groups can sort internally by level, experience, National Dex, or the current localized species name. Stable numeric and original-position tie-breakers preserve determinism. Legality is calculated once per Pokémon only when the legality requirement is enabled. Move completeness means that all four stored move IDs are non-zero; it does not judge moveset quality.
+
+Progress and level-band groups begin on box boundaries. This can require more boxes than raw Pokémon count alone, and the planner reports the exact requirement without silently compacting groups. Optional names include `Battle Ready`, `High Level`, `In Training`, configured `Lv` ranges, and `Experience`, with deterministic numbering and save-specific truncation. Optional backgrounds use Metal, Volcano, Steppe, Forest, Pokémon Center, Checkered, and City according to group meaning. All moves, names, and resolved backgrounds appear in the preview.
+
+## Custom Rule-Based Organizer
+
+This strategy provides a deliberately bounded ordered rule pipeline. The editor contains two grouping rows and four sorting rows; disabling a row removes it from the active pipeline, selectors choose its criterion, and arrow buttons change priority.
+
+Grouping criteria are **Shiny status**, **Origin game**, **Primary type**, and **Level band**. Two active criteria form a hierarchy in visible priority order—for example Origin game followed by Shiny status. Origin identity and order use stable PKHeX game IDs, primary type uses the Pokémon's first type without dual-type optimization, and level bands share the configurable boundaries above.
+
+Sorting criteria are **National Dex**, **Level**, **Experience**, **Shiny status**, **Origin game**, and **Gender**, with ascending/descending or friendly shiny-first direction. Up to four enabled rules are compared lexicographically, so a lower-priority rule never outweighs a higher one. With no active sort rules, original box/slot order is preserved.
+
+**Start each group in a new box** defaults on. It gives each final hierarchical group a clean boundary and may reserve unused trailing slots; insufficient selected boxes is an error. Turning it off packs groups compactly and permits transitions inside a box. Group-boundary boxes derive names from localized group display values; compact boxes containing several groups use deterministic `Custom` names. Backgrounds use the first meaningful grouping rule: existing type mappings, level-progress themes, or White/Checkered for shiny status. Origin-only groups preserve their wallpapers because no arbitrary game-to-wallpaper mapping is invented.
+
+Both strategies use complete target-slot mappings. Unselected and protected boxes, party Pokémon, and empty slots remain outside planning. Preview generation is read-only; applying revalidates the same save and every selected slot, snapshots the save, applies slots/names/backgrounds, refreshes PKHeX, and rolls back on failure without saving to disk.
 
 ## Living Dex Sorting
 
@@ -123,9 +151,35 @@ Database filters are combined with logical AND:
 
 All enabled filters must match and are applied before PID/species conflict handling. New imports use empty selected slots in box/slot order. Replacements do not consume empty capacity. If all planned imports do not fit, the plan is invalid and nothing can be applied. The preview separates new imports, prominent replacements, skipped entries, and scan warnings, and shows shiny grouping, filter, compatibility, and capacity statistics.
 
-After preview approval, a second confirmation defaults to Cancel. Applying revalidates the same save, every selected slot, box names, any included Team/Pension comparison entries and Team destination capacity, and the content hashes of source database files. Organizer Mod then creates a complete in-memory snapshot, applies replacements followed by imports, refreshes PKHeX, and restores the snapshot on any failure. It never saves the file to disk automatically.
+After preview approval, a second confirmation defaults to Cancel. Applying revalidates the same save, every selected slot, box names, any included Team/Pension comparison entries and Team destination capacity, and the content hashes of source database files. Organizer Mod then creates a complete in-memory snapshot, applies replacements followed by imports, and registers every successfully written database Pokémon through PKHeX's generation-aware Pokédex update path. This marks supported entries as seen and caught and records additional form, gender, shiny, or language details where the loaded save format supports them. PKHeX is refreshed afterward, and the complete snapshot—including Pokédex state—is restored on any failure. Organizer Mod never saves the file to disk automatically.
 
 PKHeX does not currently expose a single reliable shiny-lock catalog covering every species, form, encounter source, and generation. Shiny missing entries are therefore explicitly presented as collection coverage gaps, not assertions that each entry is obtainable. The preview repeats this limitation.
+
+## Smart Team Builder
+
+**Smart Team Builder** is a standalone function that assembles the current Team exclusively from Pokémon already in the Team and user-selected storage boxes. It never creates, clones, imports, deletes, or reconstructs a Pokémon. Selected boxes are both candidate sources and the only permitted destinations for displaced Team members; unselected boxes remain unchanged.
+
+Choose a Team size from one through six. If too few eligible Pokémon are available, planning is rejected unless **Allow a smaller Team** is explicitly enabled. Eggs are excluded by default, and invalid Team data rejects the plan rather than risking an unsafe move.
+
+Eligibility rules are filters combined with logical AND:
+
+- one or two required types using **any**, **all**, or **exact combination** matching;
+- one stable origin-game ID;
+- species introduction generation;
+- Legendary, Sub-Legendary, or Mythical species only;
+- shiny Pokémon only.
+
+Type matching uses the Pokémon's complete normalized type set, not merely its primary type. “All Water and Electric” therefore requires both types in either order, while exact matching also rejects Pokémon with only one of those types. Species generation means the generation where that National Dex species first appeared; it is deliberately independent of origin game.
+
+Eligible Pokémon are ranked lexicographically using the visible, reorderable preferences. Available criteria are level then total experience, selected-type coverage, origin game, species generation, Legendary/Mythical status, and shiny status. A lower-priority criterion can never outweigh a higher-priority criterion. Final ties favor existing Team members, then the earliest original location. **Prefer different species** is enabled by default and uses a deterministic two-pass selection: the best representative of each species is chosen first, then duplicates fill remaining Team slots when necessary.
+
+The final Team can follow preference order, preserve the relative order of retained Team members where possible, or use descending level and experience. This ordering changes positions only, not which Pokémon were selected.
+
+The preview shows the proposed Team, active eligibility and preference rules, sequential exclusion counts, and every Team-to-box or box-to-Team exchange. Displaced Team members use slots vacated by selected box Pokémon first, followed by existing empty slots in selected boxes. Insufficient storage capacity invalidates the complete plan; no partial changes are allowed.
+
+Applying revalidates the loaded save, Team count, every Team slot, every selected box slot, and selected box names. It then creates a complete in-memory snapshot and writes final Team and box states using full PKHeX entities, preserving held items and all Pokémon metadata. Any failure restores the snapshot. Organizer Mod refreshes PKHeX afterward and never saves the file to disk automatically.
+
+Current classification semantics follow PKHeX's `Legendary`, `SubLegendary`, and `Mythical` species categories. Ultra Beasts and Paradox Pokémon are not included. PKHeX has no direct public per-species introduction-generation method in this checkout, so the adapter isolates the standard stable National Dex generation boundaries in one provider.
 
 ## Remove Duplicates by PID
 

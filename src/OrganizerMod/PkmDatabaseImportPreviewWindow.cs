@@ -50,6 +50,7 @@ internal sealed class PkmDatabaseImportPreviewWindow : Form
         $"Filters: legality {filters.Legality}, origin {filters.OriginGame?.ToString() ?? "any"}, minimum level {filters.MinimumLevel?.ToString() ?? "none"}, gender {filters.Gender?.ToString() ?? "any"}, shiny {ShinyFilter(filters.IsShiny)}{Environment.NewLine}" +
         $"Files scanned: {x.FilesScanned}    Pokémon loaded: {x.LoadedPokemon}    Eligible: {x.EligibleAfterFilters}    Existing compared: {x.ExistingPokemonCompared}{Environment.NewLine}" +
         $"New imports: {x.NewImports}    Replacements: {x.Replacements}    Skipped: {x.Skipped}    Enabled destinations: {x.EmptyDestinationSlots}    Remaining: {x.RemainingFreeSlots}{Environment.NewLine}" +
+        $"Pokédex: every imported or replacement Pokémon will be registered through PKHeX as seen and caught.{Environment.NewLine}" +
         $"Unreadable: {x.UnreadableFiles}    Incompatible: {x.IncompatiblePokemon}    Sequential filter exclusions — legality {f.ExcludedByLegality}, origin {f.ExcludedByOrigin}, level {f.ExcludedByMinimumLevel}, gender {f.ExcludedByGender}, shiny {f.ExcludedByShiny}"; }
     private static string PidScope(PkmDatabaseImportOptions options)
     {

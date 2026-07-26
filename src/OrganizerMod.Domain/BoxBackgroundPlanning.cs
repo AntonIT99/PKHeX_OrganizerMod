@@ -47,28 +47,34 @@ public static class TypeBoxBackgroundMapping
         new ReadOnlyDictionary<PokemonElementType, IReadOnlyList<BoxBackgroundTheme>>(
             new Dictionary<PokemonElementType, IReadOnlyList<BoxBackgroundTheme>>
             {
-                [PokemonElementType.Normal] = Themes(BoxBackgroundTheme.Checkered, BoxBackgroundTheme.White, BoxBackgroundTheme.City),
-                [PokemonElementType.Fire] = Themes(BoxBackgroundTheme.Volcano, BoxBackgroundTheme.Steppe, BoxBackgroundTheme.Desert),
+                // Checkered and White are deliberately reserved for Mixed boxes. The
+                // remaining primary themes cover all non-neutral backgrounds before
+                // repeating a type-appropriate one.
+                [PokemonElementType.Normal] = Themes(BoxBackgroundTheme.City, BoxBackgroundTheme.Steppe, BoxBackgroundTheme.Forest),
+                [PokemonElementType.Fire] = Themes(BoxBackgroundTheme.Volcano, BoxBackgroundTheme.Desert, BoxBackgroundTheme.Rocky),
                 [PokemonElementType.Water] = Themes(BoxBackgroundTheme.DeepSea, BoxBackgroundTheme.River, BoxBackgroundTheme.Beach),
-                [PokemonElementType.Electric] = Themes(BoxBackgroundTheme.City, BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.Metal),
+                [PokemonElementType.Electric] = Themes(BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.Metal, BoxBackgroundTheme.City),
                 [PokemonElementType.Grass] = Themes(BoxBackgroundTheme.Forest, BoxBackgroundTheme.River, BoxBackgroundTheme.Steppe),
-                [PokemonElementType.Ice] = Themes(BoxBackgroundTheme.Snow, BoxBackgroundTheme.White, BoxBackgroundTheme.Cave),
+                [PokemonElementType.Ice] = Themes(BoxBackgroundTheme.Snow, BoxBackgroundTheme.Cave, BoxBackgroundTheme.Sky),
                 [PokemonElementType.Fighting] = Themes(BoxBackgroundTheme.Steppe, BoxBackgroundTheme.Rocky, BoxBackgroundTheme.City),
-                [PokemonElementType.Poison] = Themes(BoxBackgroundTheme.Cave, BoxBackgroundTheme.City, BoxBackgroundTheme.DeepSea),
+                [PokemonElementType.Poison] = Themes(BoxBackgroundTheme.Cave, BoxBackgroundTheme.DeepSea, BoxBackgroundTheme.PokemonCenter),
                 [PokemonElementType.Ground] = Themes(BoxBackgroundTheme.Desert, BoxBackgroundTheme.Rocky, BoxBackgroundTheme.Steppe),
-                [PokemonElementType.Flying] = Themes(BoxBackgroundTheme.Sky, BoxBackgroundTheme.Beach, BoxBackgroundTheme.Steppe),
-                [PokemonElementType.Psychic] = Themes(BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.Sky, BoxBackgroundTheme.White),
-                [PokemonElementType.Bug] = Themes(BoxBackgroundTheme.Forest, BoxBackgroundTheme.Steppe, BoxBackgroundTheme.River),
+                [PokemonElementType.Flying] = Themes(BoxBackgroundTheme.Sky, BoxBackgroundTheme.Beach, BoxBackgroundTheme.River),
+                [PokemonElementType.Psychic] = Themes(BoxBackgroundTheme.River, BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.Sky),
+                [PokemonElementType.Bug] = Themes(BoxBackgroundTheme.Beach, BoxBackgroundTheme.Forest, BoxBackgroundTheme.Steppe),
                 [PokemonElementType.Rock] = Themes(BoxBackgroundTheme.Rocky, BoxBackgroundTheme.Cave, BoxBackgroundTheme.Desert),
-                [PokemonElementType.Ghost] = Themes(BoxBackgroundTheme.Cave, BoxBackgroundTheme.White, BoxBackgroundTheme.PokemonCenter),
-                [PokemonElementType.Dragon] = Themes(BoxBackgroundTheme.Volcano, BoxBackgroundTheme.Sky, BoxBackgroundTheme.Cave),
-                [PokemonElementType.Dark] = Themes(BoxBackgroundTheme.Cave, BoxBackgroundTheme.City, BoxBackgroundTheme.Metal),
-                [PokemonElementType.Steel] = Themes(BoxBackgroundTheme.Metal, BoxBackgroundTheme.City, BoxBackgroundTheme.PokemonCenter),
-                [PokemonElementType.Fairy] = Themes(BoxBackgroundTheme.White, BoxBackgroundTheme.Forest, BoxBackgroundTheme.Sky),
+                [PokemonElementType.Ghost] = Themes(BoxBackgroundTheme.Cave, BoxBackgroundTheme.DeepSea, BoxBackgroundTheme.Sky),
+                [PokemonElementType.Dragon] = Themes(BoxBackgroundTheme.Volcano, BoxBackgroundTheme.Sky, BoxBackgroundTheme.Rocky),
+                [PokemonElementType.Dark] = Themes(BoxBackgroundTheme.Metal, BoxBackgroundTheme.City, BoxBackgroundTheme.Cave),
+                [PokemonElementType.Steel] = Themes(BoxBackgroundTheme.Metal, BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.City),
+                [PokemonElementType.Fairy] = Themes(BoxBackgroundTheme.Forest, BoxBackgroundTheme.Sky, BoxBackgroundTheme.PokemonCenter),
             });
 
     public static IReadOnlyList<BoxBackgroundTheme> MixedThemes { get; } =
         Themes(BoxBackgroundTheme.Checkered, BoxBackgroundTheme.White);
+
+    public static IReadOnlyList<BoxBackgroundTheme> LegendaryThemes { get; } =
+        Themes(BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.Sky, BoxBackgroundTheme.City);
 
     public static IReadOnlyDictionary<PokemonElementType, IReadOnlyList<BoxBackgroundTheme>> TypeThemes => Mapping;
 
@@ -88,12 +94,15 @@ public static class TypeBoxBackgroundPlanner
             return [];
 
         var typeOrdinals = new Dictionary<PokemonElementType, int>();
+        var legendaryOrdinal = 0;
         var result = new List<PlannedBoxBackgroundTheme>(boxes.Count);
         foreach (var box in boxes)
         {
-            var configured = box.IsMixed
-                ? TypeBoxBackgroundMapping.MixedThemes
-                : TypeBoxBackgroundMapping.TypeThemes[box.SharedType!.Value];
+            var configured = box.IsLegendary
+                ? TypeBoxBackgroundMapping.LegendaryThemes
+                : box.IsMixed
+                    ? TypeBoxBackgroundMapping.MixedThemes
+                    : TypeBoxBackgroundMapping.TypeThemes[box.SharedType!.Value];
             var supported = configured
                 .Select((theme, configuredIndex) => (Theme: theme, ConfiguredIndex: configuredIndex))
                 .Where(item => options.SupportedBackgroundThemes.Contains(item.Theme))
@@ -101,7 +110,9 @@ public static class TypeBoxBackgroundPlanner
 
             if (supported.Length == 0)
             {
-                var group = box.IsMixed ? "Mixed" : box.SharedType!.Value.ToString();
+                var group = box.IsLegendary
+                    ? "Legendary"
+                    : box.IsMixed ? "Mixed" : box.SharedType!.Value.ToString();
                 var warning =
                     $"Box {box.TargetBoxIndex + 1}: No supported matching background was available for {group}. Existing background will be preserved.";
                 result.Add(new PlannedBoxBackgroundTheme(
@@ -115,13 +126,15 @@ public static class TypeBoxBackgroundPlanner
             }
 
             var ordinal = 0;
-            if (!box.IsMixed)
+            if (!box.IsMixed && !box.IsLegendary)
             {
                 var type = box.SharedType!.Value;
                 ordinal = typeOrdinals.GetValueOrDefault(type);
                 typeOrdinals[type] = ordinal + 1;
             }
 
+            if (box.IsLegendary)
+                ordinal = legendaryOrdinal++;
             var supportedIndex = !box.IsMixed && options.RotateAlternativeBackgrounds
                 ? ordinal % supported.Length
                 : 0;

@@ -32,6 +32,10 @@ internal sealed class PkmDatabaseImportSession(
 internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvider)
 {
     private readonly PkmDatabaseImportPlanner planner = new();
+    private static readonly EntityImportSettings ImportSettings = new(
+        EntityImportOption.Disable,
+        EntityImportOption.Enable,
+        EntityImportOption.Disable);
 
     public static string ResolveConfiguredDatabasePath()
     {
@@ -283,9 +287,9 @@ internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvide
         if (!session.ConvertedPokemon.TryGetValue(id, out var pk))
             throw new InvalidOperationException($"Converted database Pokémon is missing: {id}");
         if (area == ExistingPokemonArea.Team)
-            save.SetPartySlotAtIndex(pk.Clone(), slot, EntityImportSettings.None);
+            save.SetPartySlotAtIndex(pk.Clone(), slot, ImportSettings);
         else if (area == ExistingPokemonArea.Box)
-            save.SetBoxSlotAtIndex(pk.Clone(), box, slot, EntityImportSettings.None);
+            save.SetBoxSlotAtIndex(pk.Clone(), box, slot, ImportSettings);
         else
             throw new InvalidOperationException("Pension storage cannot be used as an import destination.");
     }

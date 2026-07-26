@@ -71,21 +71,42 @@ public sealed class TypeBoxOrganizationPlanner
         }
 
         var orderedPokemon = pokemon.OrderBy(item => item, PokemonComparer.Instance).ToArray();
-        var targetBoxIndices = boxes.Select(box => box.BoxIndex).Order().ToArray();
-        var assignedTypes = OptimizeAssignments(orderedPokemon, options.LayoutMode, targetBoxIndices);
-        var layout = EvaluateLayout(orderedPokemon, assignedTypes, options.LayoutMode, boxes.Count);
-        if (layout.UsedBoxes > boxes.Count)
+        var legendaryPokemon = options.GroupLegendaries
+            ? orderedPokemon.Where(item => item.IsLegendary).ToArray()
+            : [];
+        var typedPokemon = options.GroupLegendaries
+            ? orderedPokemon.Where(item => !item.IsLegendary).ToArray()
+            : orderedPokemon;
+        var legendaryBoxCount = DivideRoundUp(legendaryPokemon.Length, BoxCapacity);
+        var minimumRequiredBoxes = legendaryBoxCount + DivideRoundUp(typedPokemon.Length, BoxCapacity);
+        if (minimumRequiredBoxes > boxes.Count)
         {
             return Invalid(
                 options.LayoutMode,
                 pokemon.Count,
                 boxes.Count,
-                [$"The generated layout requires {layout.UsedBoxes} boxes, but only {boxes.Count} usable boxes were selected."]);
+                [$"Grouping {legendaryPokemon.Length} Legendary Pokémon separately requires at least {minimumRequiredBoxes} boxes, but only {boxes.Count} usable boxes were selected."]);
         }
 
         var orderedBoxes = boxes.OrderBy(box => box.BoxIndex).ToArray();
-        var groups = BuildGroups(orderedPokemon, assignedTypes, layout, orderedBoxes);
-        var assignments = BuildSlotAssignments(groups, orderedPokemon, assignedTypes);
+        var typedTargetBoxes = orderedBoxes.Skip(legendaryBoxCount).ToArray();
+        var targetBoxIndices = typedTargetBoxes.Select(box => box.BoxIndex).ToArray();
+        var assignedTypes = OptimizeAssignments(typedPokemon, options.LayoutMode, targetBoxIndices);
+        var layout = EvaluateLayout(typedPokemon, assignedTypes, options.LayoutMode, typedTargetBoxes.Length);
+        var usedBoxes = legendaryBoxCount + layout.UsedBoxes;
+        if (usedBoxes > boxes.Count)
+        {
+            return Invalid(
+                options.LayoutMode,
+                pokemon.Count,
+                boxes.Count,
+                [$"The generated layout requires {usedBoxes} boxes, but only {boxes.Count} usable boxes were selected."]);
+        }
+
+        var legendaryGroups = BuildLegendaryGroups(legendaryPokemon, orderedBoxes);
+        var typedGroups = BuildGroups(typedPokemon, assignedTypes, layout, typedTargetBoxes);
+        var groups = legendaryGroups.Concat(typedGroups).ToArray();
+        var assignments = BuildSlotAssignments(groups, typedPokemon, assignedTypes);
         var boxStateByIndex = orderedBoxes.ToDictionary(box => box.BoxIndex);
         var renames = TypeBoxNameGenerator.CreateRenames(groups, boxStateByIndex, options);
         var backgroundThemes = TypeBoxBackgroundPlanner.Create(groups, options);
@@ -108,8 +129,10 @@ public sealed class TypeBoxOrganizationPlanner
             layout.MixedBoxes,
             layout.PokemonInTypeBoxes,
             layout.PokemonInMixedBoxes,
-            layout.UsedBoxes,
-            (layout.UsedBoxes * BoxCapacity) - pokemon.Count);
+            usedBoxes,
+            (usedBoxes * BoxCapacity) - pokemon.Count,
+            legendaryBoxCount,
+            legendaryPokemon.Length);
 
         return new TypeOrganizationPlan(
             options.LayoutMode,
@@ -527,6 +550,25 @@ public sealed class TypeBoxOrganizationPlanner
             .ToArray();
     }
 
+    private static IReadOnlyList<TypeBoxAssignment> BuildLegendaryGroups(
+        IReadOnlyList<OrganizablePokemon> pokemon,
+        IReadOnlyList<BoxState> targetBoxes)
+    {
+        var result = new List<TypeBoxAssignment>(DivideRoundUp(pokemon.Count, BoxCapacity));
+        for (var offset = 0; offset < pokemon.Count; offset += BoxCapacity)
+        {
+            var group = pokemon.Skip(offset).Take(BoxCapacity).ToArray();
+            result.Add(new TypeBoxAssignment(
+                targetBoxes[offset / BoxCapacity].BoxIndex,
+                null,
+                group.Select(item => item.Reference),
+                isMixed: false,
+                isLegendary: true));
+        }
+
+        return result;
+    }
+
     private static IReadOnlyList<TypeSlotAssignment> BuildSlotAssignments(
         IReadOnlyList<TypeBoxAssignment> boxes,
         IReadOnlyList<OrganizablePokemon> pokemon,
@@ -541,12 +583,14 @@ public sealed class TypeBoxOrganizationPlanner
             for (var slot = 0; slot < box.Pokemon.Count; slot++)
             {
                 var reference = box.Pokemon[slot];
+                var isLegendary = box.IsLegendary;
                 result.Add(new TypeSlotAssignment(
                     reference,
                     box.TargetBoxIndex,
                     slot,
-                    typeByReference[reference],
-                    box.IsMixed));
+                    isLegendary ? null : typeByReference[reference],
+                    box.IsMixed,
+                    isLegendary));
             }
         }
 

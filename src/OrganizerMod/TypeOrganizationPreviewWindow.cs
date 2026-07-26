@@ -161,6 +161,7 @@ internal sealed class TypeOrganizationPreviewWindow : Form
         return
             $"Mode: {mode}    Usable boxes: {plan.UsableBoxCount}    Pokémon organized: {plan.PokemonCount}{Environment.NewLine}" +
             $"Full type boxes: {summary.FullTypeBoxes}    Partial type boxes: {summary.PartialTypeBoxes}    Mixed boxes: {summary.MixedBoxes}{Environment.NewLine}" +
+            $"Legendary grouping: {(session.GroupLegendaries ? "Enabled" : "Disabled")}    Legendary boxes: {summary.LegendaryBoxes}    Legendary Pokémon: {summary.LegendaryPokemon}{Environment.NewLine}" +
             $"Pokémon in type-coherent boxes: {summary.PokemonInTypeBoxes}    Pokémon in mixed boxes: {summary.PokemonInMixedBoxes}    Unused slots: {summary.UnusedSlots}{Environment.NewLine}" +
             $"Box names to change: {plan.RenameOperations.Count}    Box backgrounds to change: {session.BackgroundChanges.Count}    Backgrounds preserved: {preserved}    Background mapping warnings: {mappingWarnings}{Environment.NewLine}" +
             $"Matching backgrounds: {(session.AssignMatchingBackgrounds ? "Enabled" : "Disabled")}    Alternative backgrounds for repeated types: {(session.RotateAlternativeBackgrounds ? "Enabled" : "Disabled")}";
@@ -174,9 +175,11 @@ internal sealed class TypeOrganizationPreviewWindow : Form
         var backgrounds = session.BackgroundPreviews.ToDictionary(item => item.BoxIndex);
         foreach (var box in plan.Boxes)
         {
-            var label = box.IsMixed
-                ? "Mixed"
-                : GetLocalizedTypeName(box.SharedType!.Value);
+            var label = box.IsLegendary
+                ? "Legendary"
+                : box.IsMixed
+                    ? "Mixed"
+                    : GetLocalizedTypeName(box.SharedType!.Value);
             if (renames.TryGetValue(box.TargetBoxIndex, out var rename))
                 label = rename.NewName;
 

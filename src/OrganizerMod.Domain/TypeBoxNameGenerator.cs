@@ -17,19 +17,26 @@ public static class TypeBoxNameGenerator
             return [];
 
         var typeCounts = boxes
-            .Where(box => !box.IsMixed)
+            .Where(box => !box.IsMixed && !box.IsLegendary)
             .GroupBy(box => box.SharedType!.Value)
             .ToDictionary(group => group.Key, group => group.Count());
         var typeOrdinals = new Dictionary<PokemonElementType, int>();
         var mixedCount = boxes.Count(box => box.IsMixed);
         var mixedOrdinal = 0;
+        var legendaryCount = boxes.Count(box => box.IsLegendary);
+        var legendaryOrdinal = 0;
         var result = new List<BoxRenameOperation>();
 
         foreach (var box in boxes)
         {
             string basis;
             string suffix;
-            if (box.IsMixed)
+            if (box.IsLegendary)
+            {
+                basis = "Legendary";
+                suffix = legendaryCount > 1 ? $" {++legendaryOrdinal}" : string.Empty;
+            }
+            else if (box.IsMixed)
             {
                 basis = "Mixed";
                 suffix = mixedCount > 1 ? $" {++mixedOrdinal}" : string.Empty;

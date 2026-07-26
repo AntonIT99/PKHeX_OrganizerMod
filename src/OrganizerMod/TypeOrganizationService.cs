@@ -28,6 +28,7 @@ internal sealed class TypeOrganizationSession(
     IReadOnlyDictionary<string, PKM> pokemonSnapshots,
     IReadOnlyDictionary<(int Box, int Slot), string> slotFingerprints,
     IReadOnlyDictionary<int, string> boxNames,
+    bool groupLegendaries,
     bool assignMatchingBackgrounds,
     bool rotateAlternativeBackgrounds,
     IReadOnlyList<BoxBackgroundPreview> backgroundPreviews,
@@ -40,6 +41,7 @@ internal sealed class TypeOrganizationSession(
     public IReadOnlyDictionary<string, PKM> PokemonSnapshots { get; } = pokemonSnapshots;
     public IReadOnlyDictionary<(int Box, int Slot), string> SlotFingerprints { get; } = slotFingerprints;
     public IReadOnlyDictionary<int, string> BoxNames { get; } = boxNames;
+    public bool GroupLegendaries { get; } = groupLegendaries;
     public bool AssignMatchingBackgrounds { get; } = assignMatchingBackgrounds;
     public bool RotateAlternativeBackgrounds { get; } = rotateAlternativeBackgrounds;
     public IReadOnlyList<BoxBackgroundPreview> BackgroundPreviews { get; } = backgroundPreviews;
@@ -96,6 +98,7 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
         IReadOnlyCollection<int> selectedBoxIndices,
         TypeBoxLayoutMode mode,
         bool renameBoxes,
+        bool groupLegendaries,
         bool assignMatchingBackgrounds,
         bool rotateAlternativeBackgrounds)
     {
@@ -152,7 +155,9 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
                     entity.IsShiny,
                     primary,
                     secondary == primary ? null : secondary,
-                    preferredType));
+                    preferredType,
+                    SpeciesCategory.IsLegendary(entity.Species) ||
+                    SpeciesCategory.IsSubLegendary(entity.Species)));
                 snapshots.Add(stableId, entity.Clone());
             }
         }
@@ -168,7 +173,8 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
             GetLocalizedTypeNames(),
             assignMatchingBackgrounds,
             rotateAlternativeBackgrounds,
-            backgroundCatalog.SupportedThemes);
+            backgroundCatalog.SupportedThemes,
+            groupLegendaries);
         var plan = planner.CreatePlan(pokemon, boxes, options);
         var (backgroundPreviews, backgroundChanges, originalBackgrounds) =
             ResolveBackgrounds(plan, backgroundCatalog);
@@ -179,6 +185,7 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
             new ReadOnlyDictionary<string, PKM>(snapshots),
             new ReadOnlyDictionary<(int Box, int Slot), string>(fingerprints),
             new ReadOnlyDictionary<int, string>(boxNames),
+            groupLegendaries,
             assignMatchingBackgrounds,
             assignMatchingBackgrounds && rotateAlternativeBackgrounds,
             backgroundPreviews,

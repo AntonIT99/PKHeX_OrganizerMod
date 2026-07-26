@@ -18,24 +18,24 @@ public sealed class TypeBoxBackgroundPlannerTests
     }
 
     [Theory]
-    [InlineData(PokemonElementType.Normal, BoxBackgroundTheme.Checkered)]
+    [InlineData(PokemonElementType.Normal, BoxBackgroundTheme.City)]
     [InlineData(PokemonElementType.Fire, BoxBackgroundTheme.Volcano)]
     [InlineData(PokemonElementType.Water, BoxBackgroundTheme.DeepSea)]
-    [InlineData(PokemonElementType.Electric, BoxBackgroundTheme.City)]
+    [InlineData(PokemonElementType.Electric, BoxBackgroundTheme.PokemonCenter)]
     [InlineData(PokemonElementType.Grass, BoxBackgroundTheme.Forest)]
     [InlineData(PokemonElementType.Ice, BoxBackgroundTheme.Snow)]
     [InlineData(PokemonElementType.Fighting, BoxBackgroundTheme.Steppe)]
     [InlineData(PokemonElementType.Poison, BoxBackgroundTheme.Cave)]
     [InlineData(PokemonElementType.Ground, BoxBackgroundTheme.Desert)]
     [InlineData(PokemonElementType.Flying, BoxBackgroundTheme.Sky)]
-    [InlineData(PokemonElementType.Psychic, BoxBackgroundTheme.PokemonCenter)]
-    [InlineData(PokemonElementType.Bug, BoxBackgroundTheme.Forest)]
+    [InlineData(PokemonElementType.Psychic, BoxBackgroundTheme.River)]
+    [InlineData(PokemonElementType.Bug, BoxBackgroundTheme.Beach)]
     [InlineData(PokemonElementType.Rock, BoxBackgroundTheme.Rocky)]
     [InlineData(PokemonElementType.Ghost, BoxBackgroundTheme.Cave)]
     [InlineData(PokemonElementType.Dragon, BoxBackgroundTheme.Volcano)]
-    [InlineData(PokemonElementType.Dark, BoxBackgroundTheme.Cave)]
+    [InlineData(PokemonElementType.Dark, BoxBackgroundTheme.Metal)]
     [InlineData(PokemonElementType.Steel, BoxBackgroundTheme.Metal)]
-    [InlineData(PokemonElementType.Fairy, BoxBackgroundTheme.White)]
+    [InlineData(PokemonElementType.Fairy, BoxBackgroundTheme.Forest)]
     public void EveryTypeUsesConfiguredPrimaryTheme(
         PokemonElementType type,
         BoxBackgroundTheme expected)
@@ -177,6 +177,24 @@ public sealed class TypeBoxBackgroundPlannerTests
     }
 
     [Fact]
+    public void LegendaryBoxesUseDedicatedThemesAndRotateDeterministically()
+    {
+        var boxes = new[]
+        {
+            new TypeBoxAssignment(0, null, [], isMixed: false, isLegendary: true),
+            new TypeBoxAssignment(1, null, [], isMixed: false, isLegendary: true),
+            new TypeBoxAssignment(2, null, [], isMixed: false, isLegendary: true),
+            new TypeBoxAssignment(3, null, [], isMixed: false, isLegendary: true),
+        };
+
+        var result = TypeBoxBackgroundPlanner.Create(boxes, Options(rotate: true));
+
+        Assert.Equal(
+            [BoxBackgroundTheme.PokemonCenter, BoxBackgroundTheme.Sky, BoxBackgroundTheme.City, BoxBackgroundTheme.PokemonCenter],
+            result.Select(item => item.Theme));
+    }
+
+    [Fact]
     public void EachGeneratedBoxGetsAtMostOneAssignment()
     {
         var boxes = new[]
@@ -203,6 +221,18 @@ public sealed class TypeBoxBackgroundPlannerTests
             Assert.NotEmpty(themes);
             Assert.Equal(themes.Count, themes.Distinct().Count());
         }
+    }
+
+    [Fact]
+    public void TypedMappingsReserveNeutralMixedThemes()
+    {
+        var typedThemes = TypeBoxBackgroundMapping.TypeThemes.Values.SelectMany(themes => themes);
+
+        Assert.DoesNotContain(BoxBackgroundTheme.Checkered, typedThemes);
+        Assert.DoesNotContain(BoxBackgroundTheme.White, typedThemes);
+        Assert.Equal(
+            [BoxBackgroundTheme.Checkered, BoxBackgroundTheme.White],
+            TypeBoxBackgroundMapping.MixedThemes);
     }
 
     [Fact]

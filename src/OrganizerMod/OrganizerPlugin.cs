@@ -62,6 +62,12 @@ public sealed class OrganizerPlugin : IPlugin
             Image = MenuIcons.ImportDatabase,
         };
         importDatabaseItem.Click += OpenDatabaseImportWindow;
+        var smartTeamItem = new ToolStripMenuItem("Smart Team Builder…")
+        {
+            Name = "Menu_OrganizerMod_SmartTeamBuilder",
+            Image = MenuIcons.Organizer,
+        };
+        smartTeamItem.Click += OpenSmartTeamBuilderWindow;
 
         var removeDuplicatesItem = new ToolStripMenuItem("Remove duplicates by PID…")
         {
@@ -85,7 +91,22 @@ public sealed class OrganizerPlugin : IPlugin
         };
         livingDexItem.Click += OpenLivingDexSortingWindow;
         menuItem.DropDownItems.Add(livingDexItem);
+        var competitiveItem = new ToolStripMenuItem("Competitive / Progress Organizer…")
+        {
+            Name = "Menu_OrganizerMod_Competitive",
+            Image = MenuIcons.Organizer,
+        };
+        competitiveItem.Click += OpenCompetitiveWindow;
+        menuItem.DropDownItems.Add(competitiveItem);
+        var customItem = new ToolStripMenuItem("Custom Rule-Based Organizer…")
+        {
+            Name = "Menu_OrganizerMod_CustomRules",
+            Image = MenuIcons.Organizer,
+        };
+        customItem.Click += OpenCustomRuleWindow;
+        menuItem.DropDownItems.Add(customItem);
         menuItem.DropDownItems.Add(importDatabaseItem);
+        menuItem.DropDownItems.Add(smartTeamItem);
         menuItem.DropDownItems.Add(removeDuplicateSpeciesItem);
         menuItem.DropDownItems.Add(removeDuplicatesItem);
         toolsMenu.DropDownItems.Add(menuItem);
@@ -127,6 +148,18 @@ public sealed class OrganizerPlugin : IPlugin
         window?.SelectLivingDexSortingStrategy();
     }
 
+    private void OpenCompetitiveWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectCompetitiveStrategy();
+    }
+
+    private void OpenCustomRuleWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectCustomRuleStrategy();
+    }
+
     private void OpenDatabaseImportWindow(object? sender, EventArgs e)
     {
         OpenOrganizerWindow(sender, e);
@@ -137,5 +170,11 @@ public sealed class OrganizerPlugin : IPlugin
     {
         OpenOrganizerWindow(sender, e);
         window?.SelectPidDuplicateFunction();
+    }
+
+    private void OpenSmartTeamBuilderWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectSmartTeamBuilderFunction();
     }
 }
