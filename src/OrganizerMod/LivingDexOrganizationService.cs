@@ -203,7 +203,7 @@ internal sealed class LivingDexOrganizationService(ISaveFileProvider saveFilePro
         if (save.BoxSlotCount != LivingDexOrganizationPlanner.BoxCapacity)
         {
             throw new NotSupportedException(
-                $"Living Dex Organizer requires 30-slot boxes; this save uses {save.BoxSlotCount} slots per box.");
+                $"Living Dex Sorting requires 30-slot boxes; this save uses {save.BoxSlotCount} slots per box.");
         }
         return save;
     }

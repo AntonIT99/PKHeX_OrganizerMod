@@ -189,7 +189,7 @@ public sealed class LivingDexOrganizationPlanner
     {
         var errors = new List<string>();
         if (boxes.Any(box => box.Capacity != BoxCapacity))
-            errors.Add("Living Dex Organizer currently requires storage boxes with exactly 30 slots.");
+            errors.Add("Living Dex Sorting currently requires storage boxes with exactly 30 slots.");
         if (boxes.Select(box => box.BoxIndex).Distinct().Count() != boxes.Count)
             errors.Add("The selected box list contains duplicate box indices.");
         if (definitions.Select(item => item.Key).Distinct().Count() != definitions.Count)

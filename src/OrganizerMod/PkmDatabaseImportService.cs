@@ -11,6 +11,8 @@ internal sealed class PkmDatabaseImportSession(
     DatabaseImportPlan plan,
     IReadOnlyDictionary<string, PKM> convertedPokemon,
     IReadOnlyDictionary<(int Box, int Slot), string> slotFingerprints,
+    IReadOnlyDictionary<(ExistingPokemonArea Area, int Facility, int Slot), string> supplementalFingerprints,
+    int partyCountAtPreview,
     IReadOnlyDictionary<int, string> boxNames,
     IReadOnlyDictionary<string, string> sourceFingerprints,
     IReadOnlyDictionary<int, string> originGameNames)
@@ -20,6 +22,8 @@ internal sealed class PkmDatabaseImportSession(
     public DatabaseImportPlan Plan { get; } = plan;
     public IReadOnlyDictionary<string, PKM> ConvertedPokemon { get; } = convertedPokemon;
     public IReadOnlyDictionary<(int Box, int Slot), string> SlotFingerprints { get; } = slotFingerprints;
+    public IReadOnlyDictionary<(ExistingPokemonArea Area, int Facility, int Slot), string> SupplementalFingerprints { get; } = supplementalFingerprints;
+    public int PartyCountAtPreview { get; } = partyCountAtPreview;
     public IReadOnlyDictionary<int, string> BoxNames { get; } = boxNames;
     public IReadOnlyDictionary<string, string> SourceFingerprints { get; } = sourceFingerprints;
     public IReadOnlyDictionary<int, string> OriginGameNames { get; } = originGameNames;
@@ -47,9 +51,16 @@ internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvide
         IReadOnlyCollection<int> selectedBoxIndices,
         SamePidImportMode pidMode,
         SameSpeciesShinyImportMode speciesMode,
+        SpeciesShinyGroupingMode speciesShinyGrouping,
         PkmDatabaseFilterOptions filters,
+        bool includeTeamInPidComparison,
+        bool includePensionInPidComparison,
+        bool allowTeamReplacements,
+        bool useTeamSlotsForNewImports,
         CancellationToken cancellationToken = default) =>
-        Task.Run(() => CreatePlan(databasePath, selectedBoxIndices, pidMode, speciesMode, filters, cancellationToken), cancellationToken);
+        Task.Run(() => CreatePlan(databasePath, selectedBoxIndices, pidMode, speciesMode, speciesShinyGrouping, filters,
+            includeTeamInPidComparison, includePensionInPidComparison, allowTeamReplacements, useTeamSlotsForNewImports,
+            cancellationToken), cancellationToken);
 
     public void Apply(PkmDatabaseImportSession session)
     {
@@ -59,6 +70,7 @@ internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvide
         if (!ReferenceEquals(save, session.Save))
             throw new InvalidOperationException("A different save was loaded after the preview. Rescan before applying.");
         SafeOrganizationApplier.ValidateStillMatches(save, session.SlotFingerprints, session.BoxNames);
+        ValidateSupplementalStillMatches(save, session);
         foreach (var pair in session.SourceFingerprints)
         {
             if (!File.Exists(pair.Key) || Fingerprint(File.ReadAllBytes(pair.Key)) != pair.Value)
@@ -69,9 +81,9 @@ internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvide
         try
         {
             foreach (var replacement in session.Plan.Replacements)
-                Write(save, session, replacement.Candidate.StableId, replacement.Existing.BoxIndex, replacement.Existing.SlotIndex);
+                Write(save, session, replacement.Candidate.StableId, replacement.Existing.Area, replacement.Existing.BoxIndex, replacement.Existing.SlotIndex);
             foreach (var import in session.Plan.Imports)
-                Write(save, session, import.Candidate.StableId, import.Destination.BoxIndex, import.Destination.SlotIndex);
+                Write(save, session, import.Candidate.StableId, import.Destination.Area, import.Destination.BoxIndex, import.Destination.SlotIndex);
             save.State.Edited = true;
             saveFileProvider.ReloadSlots();
         }
@@ -89,7 +101,12 @@ internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvide
         IReadOnlyCollection<int> selectedBoxIndices,
         SamePidImportMode pidMode,
         SameSpeciesShinyImportMode speciesMode,
+        SpeciesShinyGroupingMode speciesShinyGrouping,
         PkmDatabaseFilterOptions filters,
+        bool includeTeamInPidComparison,
+        bool includePensionInPidComparison,
+        bool allowTeamReplacements,
+        bool useTeamSlotsForNewImports,
         CancellationToken token)
     {
         var save = saveFileProvider.SAV;
@@ -158,19 +175,119 @@ internal sealed class PkmDatabaseImportService(ISaveFileProvider saveFileProvide
             else existing.Add(new($"{box:D3}:{slot:D2}:{fingerprint}", pk.PID, pk.Species, pk.Form, pk.IsShiny, pk.CurrentLevel, pk.EXP,
                 (int)pk.Version, ToGender(pk.Gender), box, slot));
         }
-        var options = new PkmDatabaseImportOptions(pidMode, speciesMode, filters, new HashSet<int>(selected));
+        if (useTeamSlotsForNewImports && save.HasParty)
+        {
+            for (var slot = save.PartyCount; slot < 6; slot++)
+                empty.Add(new(-1, slot, ExistingPokemonArea.Team));
+        }
+        var supplementalFingerprints = new Dictionary<(ExistingPokemonArea, int, int), string>();
+        var needsTeamSnapshot = includeTeamInPidComparison || useTeamSlotsForNewImports;
+        ReadSupplementalPokemon(save, needsTeamSnapshot, includePensionInPidComparison, existing, supplementalFingerprints);
+        var options = new PkmDatabaseImportOptions(pidMode, speciesMode, filters, new HashSet<int>(selected),
+            includeTeamInPidComparison, includePensionInPidComparison, speciesShinyGrouping,
+            allowTeamReplacements, useTeamSlotsForNewImports);
         var plan = planner.CreatePlan(database, existing, empty, options, files.Length, unreadable, warnings);
         var games = DuplicateSpeciesRemovalService.GetOriginGames().ToDictionary(x => x.Id, x => x.Name);
         return new(save, databasePath, plan, new ReadOnlyDictionary<string, PKM>(converted),
-            new ReadOnlyDictionary<(int, int), string>(fingerprints), new ReadOnlyDictionary<int, string>(names),
+            new ReadOnlyDictionary<(int, int), string>(fingerprints),
+            new ReadOnlyDictionary<(ExistingPokemonArea, int, int), string>(supplementalFingerprints),
+            save.PartyCount,
+            new ReadOnlyDictionary<int, string>(names),
             new ReadOnlyDictionary<string, string>(sourceFingerprints), new ReadOnlyDictionary<int, string>(games));
     }
 
-    private static void Write(SaveFile save, PkmDatabaseImportSession session, string id, int box, int slot)
+    private static void ValidateSupplementalStillMatches(SaveFile save, PkmDatabaseImportSession session)
+    {
+        var includesTeam = session.Plan.Options.IncludeTeamInPidComparison || session.Plan.Options.UseTeamSlotsForNewImports;
+        if (!includesTeam && !session.Plan.Options.IncludePensionInPidComparison)
+            return;
+        if (includesTeam && save.PartyCount != session.PartyCountAtPreview)
+            throw new InvalidOperationException("The Team changed after the preview. Rescan before applying.");
+        var current = new Dictionary<(ExistingPokemonArea, int, int), string>();
+        ReadSupplementalPokemon(save, includesTeam,
+            session.Plan.Options.IncludePensionInPidComparison, [], current);
+        if (current.Count != session.SupplementalFingerprints.Count ||
+            current.Any(pair => !session.SupplementalFingerprints.TryGetValue(pair.Key, out var expected) || expected != pair.Value))
+            throw new InvalidOperationException("The Team or Pension changed after the preview. Rescan before applying.");
+    }
+
+    private static void ReadSupplementalPokemon(
+        SaveFile save,
+        bool includeTeam,
+        bool includePension,
+        ICollection<ExistingSavePokemon> existing,
+        IDictionary<(ExistingPokemonArea, int, int), string> fingerprints)
+    {
+        if (includeTeam && save.HasParty)
+        {
+            for (var slot = 0; slot < save.PartyCount; slot++)
+                AddSupplemental(save.GetPartySlotAtIndex(slot), ExistingPokemonArea.Team, 0, slot, existing, fingerprints);
+        }
+
+        if (!includePension)
+            return;
+
+        var facility = 0;
+        if (save is IDaycareMulti multiple)
+        {
+            for (var index = 0; index < multiple.DaycareCount; index++)
+                ReadPension(save, multiple[index], facility++, existing, fingerprints);
+        }
+        else if (save is IDaycareStorage pension)
+        {
+            ReadPension(save, pension, facility++, existing, fingerprints);
+        }
+
+        // Some formats expose pension storage only through PKHeX's extra-slot API.
+        if (facility != 0)
+            return;
+        var extras = save.GetExtraSlots().Where(x => x.Type == StorageSlotType.Daycare).ToArray();
+        for (var slot = 0; slot < extras.Length; slot++)
+            AddSupplemental(extras[slot].Read(save), ExistingPokemonArea.Pension, 0, slot, existing, fingerprints);
+    }
+
+    private static void ReadPension(
+        SaveFile save,
+        IDaycareStorage pension,
+        int facility,
+        ICollection<ExistingSavePokemon> existing,
+        IDictionary<(ExistingPokemonArea, int, int), string> fingerprints)
+    {
+        for (var slot = 0; slot < pension.DaycareSlotCount; slot++)
+        {
+            if (!pension.IsDaycareOccupied(slot))
+                continue;
+            AddSupplemental(save.GetStoredSlot(pension.GetDaycareSlot(slot).Span), ExistingPokemonArea.Pension,
+                facility, slot, existing, fingerprints);
+        }
+    }
+
+    private static void AddSupplemental(
+        PKM pk,
+        ExistingPokemonArea area,
+        int facility,
+        int slot,
+        ICollection<ExistingSavePokemon> existing,
+        IDictionary<(ExistingPokemonArea, int, int), string> fingerprints)
+    {
+        if (pk.Species == 0)
+            return;
+        var fingerprint = OrganizationStorageUtilities.Fingerprint(pk);
+        fingerprints[(area, facility, slot)] = fingerprint;
+        existing.Add(new($"{area}:{facility:D2}:{slot:D2}:{fingerprint}", pk.PID, pk.Species, pk.Form, pk.IsShiny,
+            pk.CurrentLevel, pk.EXP, (int)pk.Version, ToGender(pk.Gender), -1, slot, area, facility));
+    }
+
+    private static void Write(SaveFile save, PkmDatabaseImportSession session, string id, ExistingPokemonArea area, int box, int slot)
     {
         if (!session.ConvertedPokemon.TryGetValue(id, out var pk))
             throw new InvalidOperationException($"Converted database Pokémon is missing: {id}");
-        save.SetBoxSlotAtIndex(pk.Clone(), box, slot, EntityImportSettings.None);
+        if (area == ExistingPokemonArea.Team)
+            save.SetPartySlotAtIndex(pk.Clone(), slot, EntityImportSettings.None);
+        else if (area == ExistingPokemonArea.Box)
+            save.SetBoxSlotAtIndex(pk.Clone(), box, slot, EntityImportSettings.None);
+        else
+            throw new InvalidOperationException("Pension storage cannot be used as an import destination.");
     }
     private static PokemonGenderPreference ToGender(byte value) => value switch { 0 => PokemonGenderPreference.Male, 1 => PokemonGenderPreference.Female, _ => PokemonGenderPreference.Genderless };
     private static string Fingerprint(ReadOnlySpan<byte> data) => Convert.ToHexString(SHA256.HashData(data));

@@ -8,6 +8,30 @@ public sealed class TypeBoxOrganizationPlanner
     public const int MaximumPairEvaluationsPerIteration = 4096;
     private const int CompactPartialMinimumFill = 15;
 
+    // Keep the enum values aligned with PKHeX's stable type identifiers. Box presentation
+    // follows the familiar National Pokédex type sequence independently of those values.
+    private static readonly PokemonElementType[] BoxTypeOrder =
+    [
+        PokemonElementType.Normal,
+        PokemonElementType.Fire,
+        PokemonElementType.Water,
+        PokemonElementType.Electric,
+        PokemonElementType.Grass,
+        PokemonElementType.Ice,
+        PokemonElementType.Fighting,
+        PokemonElementType.Poison,
+        PokemonElementType.Ground,
+        PokemonElementType.Flying,
+        PokemonElementType.Psychic,
+        PokemonElementType.Bug,
+        PokemonElementType.Rock,
+        PokemonElementType.Ghost,
+        PokemonElementType.Dragon,
+        PokemonElementType.Dark,
+        PokemonElementType.Steel,
+        PokemonElementType.Fairy,
+    ];
+
     public TypeOrganizationPlan CreatePlan(
         IReadOnlyList<OrganizablePokemon> pokemon,
         IReadOnlyList<BoxState> boxes,
@@ -40,6 +64,7 @@ public sealed class TypeBoxOrganizationPlanner
                 [],
                 [],
                 [],
+                [],
                 new TypeOrganizationSummary(0, 0, 0, 0, 0, 0, 0),
                 boxes.Count,
                 0);
@@ -63,7 +88,11 @@ public sealed class TypeBoxOrganizationPlanner
         var assignments = BuildSlotAssignments(groups, orderedPokemon, assignedTypes);
         var boxStateByIndex = orderedBoxes.ToDictionary(box => box.BoxIndex);
         var renames = TypeBoxNameGenerator.CreateRenames(groups, boxStateByIndex, options);
+        var backgroundThemes = TypeBoxBackgroundPlanner.Create(groups, options);
         var warnings = new List<string>();
+        warnings.AddRange(backgroundThemes
+            .Where(item => item.Warning is not null)
+            .Select(item => item.Warning!));
 
         if (options.LayoutMode == TypeBoxLayoutMode.ExpandedByType &&
             layout.UnseparatedResidualTypeCount != 0)
@@ -87,6 +116,7 @@ public sealed class TypeBoxOrganizationPlanner
             assignments,
             groups,
             renames,
+            backgroundThemes,
             warnings,
             [],
             summary,
@@ -124,6 +154,7 @@ public sealed class TypeBoxOrganizationPlanner
         IReadOnlyList<string> errors) =>
         new(
             mode,
+            [],
             [],
             [],
             [],
@@ -455,7 +486,7 @@ public sealed class TypeBoxOrganizationPlanner
 
         var logicalGroups = new List<(PokemonElementType? Type, bool Mixed, OrganizablePokemon[] Pokemon)>();
         var mixed = new List<OrganizablePokemon>();
-        foreach (var type in Enum.GetValues<PokemonElementType>())
+        foreach (var type in BoxTypeOrder)
         {
             var ordered = byType[type].OrderBy(item => item, PokemonComparer.Instance).ToArray();
             var fullBoxCount = ordered.Length / BoxCapacity;

@@ -129,7 +129,10 @@ public sealed record TypeBoxOrganizerOptions
         TypeBoxLayoutMode layoutMode,
         bool renameBoxes,
         int maximumBoxNameLength = 16,
-        IReadOnlyDictionary<PokemonElementType, string>? typeNames = null)
+        IReadOnlyDictionary<PokemonElementType, string>? typeNames = null,
+        bool assignMatchingBackgrounds = false,
+        bool rotateAlternativeBackgrounds = false,
+        IReadOnlySet<BoxBackgroundTheme>? supportedBackgroundThemes = null)
     {
         if (!Enum.IsDefined(layoutMode))
             throw new ArgumentOutOfRangeException(nameof(layoutMode));
@@ -141,12 +144,19 @@ public sealed record TypeBoxOrganizerOptions
         TypeNames = new ReadOnlyDictionary<PokemonElementType, string>(
             new Dictionary<PokemonElementType, string>(
                 typeNames ?? TypeBoxNameGenerator.EnglishTypeNames));
+        AssignMatchingBackgrounds = assignMatchingBackgrounds;
+        RotateAlternativeBackgrounds = assignMatchingBackgrounds && rotateAlternativeBackgrounds;
+        SupportedBackgroundThemes = new HashSet<BoxBackgroundTheme>(
+            supportedBackgroundThemes ?? new HashSet<BoxBackgroundTheme>());
     }
 
     public TypeBoxLayoutMode LayoutMode { get; }
     public bool RenameBoxes { get; }
     public int MaximumBoxNameLength { get; }
     public IReadOnlyDictionary<PokemonElementType, string> TypeNames { get; }
+    public bool AssignMatchingBackgrounds { get; }
+    public bool RotateAlternativeBackgrounds { get; }
+    public IReadOnlySet<BoxBackgroundTheme> SupportedBackgroundThemes { get; }
 }
 
 public sealed record TypeSlotAssignment(
@@ -227,6 +237,7 @@ public sealed class TypeOrganizationPlan
         IEnumerable<TypeSlotAssignment> assignments,
         IEnumerable<TypeBoxAssignment> boxes,
         IEnumerable<BoxRenameOperation> renames,
+        IEnumerable<PlannedBoxBackgroundTheme> backgroundThemes,
         IEnumerable<string> warnings,
         IEnumerable<string> errors,
         TypeOrganizationSummary summary,
@@ -237,6 +248,7 @@ public sealed class TypeOrganizationPlan
         Assignments = ReadOnly(assignments);
         Boxes = ReadOnly(boxes);
         RenameOperations = ReadOnly(renames);
+        BackgroundThemes = ReadOnly(backgroundThemes);
         Warnings = ReadOnly(warnings);
         Errors = ReadOnly(errors);
         Summary = summary;
@@ -248,6 +260,7 @@ public sealed class TypeOrganizationPlan
     public IReadOnlyList<TypeSlotAssignment> Assignments { get; }
     public IReadOnlyList<TypeBoxAssignment> Boxes { get; }
     public IReadOnlyList<BoxRenameOperation> RenameOperations { get; }
+    public IReadOnlyList<PlannedBoxBackgroundTheme> BackgroundThemes { get; }
     public IReadOnlyList<string> Warnings { get; }
     public IReadOnlyList<string> Errors { get; }
     public TypeOrganizationSummary Summary { get; }

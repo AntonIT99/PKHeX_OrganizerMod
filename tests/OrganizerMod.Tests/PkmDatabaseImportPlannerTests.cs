@@ -19,7 +19,7 @@ public sealed class PkmDatabaseImportPlannerTests
         };
         var plan = Plan(input, filters: new(LegalityFilterMode.OnlyLegal, 1, 50, PokemonGenderPreference.Female));
         Assert.Equal(1, plan.Summary.EligibleAfterFilters);
-        Assert.Equal(new DatabaseFilterStatistics(1, 1, 1, 1), plan.Summary.Filters);
+        Assert.Equal(new DatabaseFilterStatistics(1, 1, 1, 1, 0), plan.Summary.Filters);
     }
 
     [Theory]
@@ -89,6 +89,110 @@ public sealed class PkmDatabaseImportPlannerTests
     }
 
     [Fact]
+    public void TeamPidMatchIsIgnoredUnlessEnabled()
+    {
+        var team = Save("team", pid: 7, area: ExistingPokemonArea.Team);
+        Assert.Single(Plan([Db("db", pid: 7)], [team], pid: SamePidImportMode.DoNotImport).Imports);
+
+        var enabled = Plan([Db("db", pid: 7)], [team], pid: SamePidImportMode.DoNotImport, includeTeam: true);
+        Assert.Empty(enabled.Imports);
+        Assert.Equal(DatabaseDecisionRule.SamePid, enabled.Decisions.Single().Rule);
+    }
+
+    [Fact]
+    public void PensionPidMatchParticipatesWhenEnabled()
+    {
+        var pension = Save("pension", pid: 7, area: ExistingPokemonArea.Pension);
+        var plan = Plan([Db("db", pid: 7)], [pension], pid: SamePidImportMode.DoNotImport, includePension: true);
+        Assert.Empty(plan.Imports);
+        Assert.Equal(DatabaseDecisionRule.SamePid, plan.Decisions.Single().Rule);
+    }
+
+    [Fact]
+    public void SupplementalScopesDoNotAffectSpeciesAndShinyRule()
+    {
+        var team = Save("team", pid: 99, area: ExistingPokemonArea.Team);
+        var plan = Plan([Db("db", pid: 7)], [team], speciesMode: SameSpeciesShinyImportMode.DoNotImportWhenExisting, includeTeam: true);
+        Assert.Single(plan.Imports);
+    }
+
+    [Fact]
+    public void WeakerDatabasePokemonIsSkippedAgainstTeamMatch()
+    {
+        var team = Save("team", pid: 7, level: 80, area: ExistingPokemonArea.Team);
+        var plan = Plan([Db("db", pid: 7, level: 70)], [team], includeTeam: true);
+        Assert.Empty(plan.Imports);
+        Assert.Empty(plan.Replacements);
+    }
+
+    [Fact]
+    public void BetterDatabasePokemonImportsAdditionallyWhenOnlyMatchIsReadOnly()
+    {
+        var pension = Save("pension", pid: 7, level: 20, area: ExistingPokemonArea.Pension);
+        var plan = Plan([Db("db", pid: 7, level: 70)], [pension], includePension: true);
+        Assert.Single(plan.Imports);
+        Assert.Empty(plan.Replacements);
+        Assert.Contains(plan.Warnings, x => x.Contains("non-replaceable Pension", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BetterDatabasePokemonReplacesSelectedBoxWhenTeamAlsoMatches()
+    {
+        var existing = new[]
+        {
+            Save("box", pid: 7, level: 20),
+            Save("team", pid: 7, level: 30, area: ExistingPokemonArea.Team),
+        };
+        var plan = Plan([Db("db", pid: 7, level: 70)], existing, includeTeam: true);
+        Assert.Single(plan.Replacements);
+        Assert.Equal("box", plan.Replacements[0].Existing.StableId);
+    }
+
+    [Fact]
+    public void BetterDatabasePokemonReplacesTeamWhenExplicitlyEnabled()
+    {
+        var team = Save("team", pid: 7, level: 20, area: ExistingPokemonArea.Team);
+        var plan = Plan([Db("db", pid: 7, level: 70)], [team], includeTeam: true, allowTeamReplacements: true);
+        Assert.Empty(plan.Imports);
+        Assert.Single(plan.Replacements);
+        Assert.Equal("team", plan.Replacements[0].Existing.StableId);
+        Assert.Equal(ExistingPokemonArea.Team, plan.Replacements[0].Existing.Area);
+    }
+
+    [Fact]
+    public void TeamReplacementRequiresTeamComparison()
+    {
+        var plan = Plan([Db("db")], allowTeamReplacements: true);
+        Assert.False(plan.IsValid);
+        Assert.Contains(plan.Errors, x => x.Contains("Team PID comparison", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void EnabledTeamSlotsReceiveImportsBeforeSelectedBoxes()
+    {
+        var slots = new[]
+        {
+            new EmptySaveSlot(0, 5),
+            new EmptySaveSlot(-1, 3, ExistingPokemonArea.Team),
+            new EmptySaveSlot(-1, 4, ExistingPokemonArea.Team),
+        };
+        var plan = Plan([Db("a", pid: 10), Db("b", pid: 11), Db("c", pid: 12)], slots: slots, useTeamSlots: true);
+        Assert.Equal(ExistingPokemonArea.Team, plan.Imports[0].Destination.Area);
+        Assert.Equal(3, plan.Imports[0].Destination.SlotIndex);
+        Assert.Equal(ExistingPokemonArea.Team, plan.Imports[1].Destination.Area);
+        Assert.Equal(ExistingPokemonArea.Box, plan.Imports[2].Destination.Area);
+        Assert.Equal(plan.Imports.Count, plan.Imports.Select(x => x.Destination).Distinct().Count());
+    }
+
+    [Fact]
+    public void DisabledTeamSlotsAreNotDestinations()
+    {
+        var slots = new[] { new EmptySaveSlot(-1, 3, ExistingPokemonArea.Team), new EmptySaveSlot(0, 5) };
+        var plan = Plan([Db("a", pid: 10)], slots: slots);
+        Assert.Equal(ExistingPokemonArea.Box, plan.Imports.Single().Destination.Area);
+    }
+
+    [Fact]
     public void SpeciesShinyAdditionalIgnoresFormAndImportsAll()
     {
         var plan = Plan([Db("a", form: 0), Db("b", form: 3)], [Save("save", form: 2)],
@@ -102,6 +206,48 @@ public sealed class PkmDatabaseImportPlannerTests
         var plan = Plan([Db("shiny", pid: 2, shiny: true)], [Save("normal")],
             speciesMode: SameSpeciesShinyImportMode.DoNotImportWhenExisting);
         Assert.Single(plan.Imports);
+    }
+
+    [Fact]
+    public void CombinedShinyGroupingTreatsShinyAndNonShinyAsSameSpecies()
+    {
+        var plan = Plan([Db("shiny", pid: 2, shiny: true)], [Save("normal")],
+            speciesMode: SameSpeciesShinyImportMode.DoNotImportWhenExisting,
+            shinyGrouping: SpeciesShinyGroupingMode.Combined);
+        Assert.Empty(plan.Imports);
+        Assert.Equal(DatabaseDecisionRule.SameSpeciesAndShiny, plan.Decisions.Single().Rule);
+    }
+
+    [Fact]
+    public void SeparateShinyGroupingKeepsIndependentBestRepresentatives()
+    {
+        var plan = Plan(
+            [Db("normal", pid: 10, shiny: false), Db("shiny", pid: 11, shiny: true)],
+            speciesMode: SameSpeciesShinyImportMode.BestDatabaseRepresentativeReplaceWhenBetter);
+        Assert.Equal(2, plan.Imports.Count);
+    }
+
+    [Fact]
+    public void CombinedShinyGroupingSelectsOneBestRepresentativeAcrossStatuses()
+    {
+        var plan = Plan(
+            [Db("normal", pid: 10, shiny: false, level: 40), Db("shiny", pid: 11, shiny: true, level: 60)],
+            speciesMode: SameSpeciesShinyImportMode.BestDatabaseRepresentativeReplaceWhenBetter,
+            shinyGrouping: SpeciesShinyGroupingMode.Combined);
+        Assert.Single(plan.Imports);
+        Assert.Equal("shiny", plan.Imports[0].Candidate.StableId);
+    }
+
+    [Theory]
+    [InlineData(true, "shiny")]
+    [InlineData(false, "normal")]
+    public void ShinyStatusFilterIncludesOnlyRequestedStatus(bool wantedShiny, string expected)
+    {
+        var filters = new PkmDatabaseFilterOptions(LegalityFilterMode.Regardless, null, null, null, wantedShiny);
+        var plan = Plan([Db("normal", pid: 10), Db("shiny", pid: 11, shiny: true)], filters: filters);
+        Assert.Single(plan.Imports);
+        Assert.Equal(expected, plan.Imports[0].Candidate.StableId);
+        Assert.Equal(1, plan.Summary.Filters.ExcludedByShiny);
     }
 
     [Fact]
@@ -171,15 +317,23 @@ public sealed class PkmDatabaseImportPlannerTests
         SameSpeciesShinyImportMode speciesMode = SameSpeciesShinyImportMode.ImportAdditionally,
         PkmDatabaseFilterOptions? filters = null,
         IReadOnlyList<EmptySaveSlot>? slots = null,
-        IReadOnlySet<int>? selected = null) =>
+        IReadOnlySet<int>? selected = null,
+        bool includeTeam = false,
+        bool includePension = false,
+        SpeciesShinyGroupingMode shinyGrouping = SpeciesShinyGroupingMode.Separate,
+        bool allowTeamReplacements = false,
+        bool useTeamSlots = false) =>
         planner.CreatePlan(db, existing ?? [], slots ?? [new(0, 10), new(0, 11), new(0, 12), new(0, 13)],
-            new(pid, speciesMode, filters ?? new(LegalityFilterMode.Regardless, null, null, null), selected ?? new HashSet<int> { 0, 1 }));
+            new(pid, speciesMode, filters ?? new(LegalityFilterMode.Regardless, null, null, null),
+                selected ?? new HashSet<int> { 0, 1 }, includeTeam, includePension, shinyGrouping,
+                allowTeamReplacements, useTeamSlots));
 
     private static DatabasePokemonCandidate Db(string id, string? path = null, uint pid = 1, int species = 1, int form = 0, bool shiny = false,
         int level = 50, ulong exp = 100, int origin = 1, PokemonGenderPreference gender = PokemonGenderPreference.Female, bool? legal = true, bool compatible = true) =>
         new(id, path ?? $"{id}.pk9", pid, species, form, shiny, level, exp, origin, gender, legal, compatible);
     private static ExistingSavePokemon Save(string id, uint pid = 1, int species = 1, int form = 0, bool shiny = false,
-        int level = 50, ulong exp = 100, int origin = 1, PokemonGenderPreference gender = PokemonGenderPreference.Female, int box = 0, int slot = 0) =>
-        new(id, pid, species, form, shiny, level, exp, origin, gender, box, slot);
+        int level = 50, ulong exp = 100, int origin = 1, PokemonGenderPreference gender = PokemonGenderPreference.Female,
+        int box = 0, int slot = 0, ExistingPokemonArea area = ExistingPokemonArea.Box, int facility = 0) =>
+        new(id, pid, species, form, shiny, level, exp, origin, gender, box, slot, area, facility);
     private static string Id(DatabaseImportDecision d) => $"{d.Candidate.StableId}:{d.Kind}:{d.Rule}:{d.ImportDestination}:{d.ReplacementTarget?.StableId}";
 }

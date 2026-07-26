@@ -21,19 +21,21 @@ internal sealed class TypeOrganizationPreviewWindow : Form
             ColumnCount = 1,
             Dock = DockStyle.Fill,
             Padding = new Padding(12),
-            RowCount = 6,
+            RowCount = 8,
         };
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 65));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 20));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var summary = new Label
         {
             AutoSize = true,
-            Text = CreateSummary(plan),
+            Text = CreateSummary(session),
         };
         var warning = new Label
         {
@@ -76,6 +78,41 @@ internal sealed class TypeOrganizationPreviewWindow : Form
             }
         }
 
+        var backgroundHeading = new Label
+        {
+            AutoSize = true,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 8, 0, 4),
+            Text = session.AssignMatchingBackgrounds
+                ? $"Box backgrounds to be changed: {session.BackgroundChanges.Count}"
+                : "Box backgrounds: unchanged",
+        };
+        var backgrounds = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            HorizontalScrollbar = true,
+        };
+        if (!session.AssignMatchingBackgrounds)
+            backgrounds.Items.Add("Matching backgrounds are disabled; all existing backgrounds will be preserved.");
+        else
+        {
+            foreach (var background in session.BackgroundPreviews.OrderBy(item => item.BoxIndex))
+            {
+                var target = background.NewDisplayName ?? "preserved";
+                var status = background.Changed
+                    ? $"\"{background.OriginalDisplayName}\" → \"{target}\""
+                    : $"\"{background.OriginalDisplayName}\" (unchanged)";
+                var choice = background.Choice switch
+                {
+                    BackgroundThemeChoice.Primary => "primary match",
+                    BackgroundThemeChoice.Alternative => "alternative match",
+                    BackgroundThemeChoice.Fallback => "fallback",
+                    _ => "preserved",
+                };
+                backgrounds.Items.Add($"Box {background.BoxIndex + 1}: {status} — {choice}");
+            }
+        }
+
         var footer = new FlowLayoutPanel
         {
             AutoSize = true,
@@ -104,22 +141,29 @@ internal sealed class TypeOrganizationPreviewWindow : Form
         layout.Controls.Add(tree, 0, 2);
         layout.Controls.Add(renameHeading, 0, 3);
         layout.Controls.Add(renames, 0, 4);
-        layout.Controls.Add(footer, 0, 5);
+        layout.Controls.Add(backgroundHeading, 0, 5);
+        layout.Controls.Add(backgrounds, 0, 6);
+        layout.Controls.Add(footer, 0, 7);
         Controls.Add(layout);
         AcceptButton = apply;
         CancelButton = cancel;
     }
 
-    private static string CreateSummary(TypeOrganizationPlan plan)
+    private static string CreateSummary(TypeOrganizationSession session)
     {
+        var plan = session.Plan;
         var mode = plan.LayoutMode == TypeBoxLayoutMode.Compact
             ? "Compact"
             : "Expanded by Type";
         var summary = plan.Summary;
+        var preserved = session.BackgroundPreviews.Count(item => item.Preserved);
+        var mappingWarnings = session.BackgroundPreviews.Count(item => item.Warning is not null);
         return
             $"Mode: {mode}    Usable boxes: {plan.UsableBoxCount}    Pokémon organized: {plan.PokemonCount}{Environment.NewLine}" +
             $"Full type boxes: {summary.FullTypeBoxes}    Partial type boxes: {summary.PartialTypeBoxes}    Mixed boxes: {summary.MixedBoxes}{Environment.NewLine}" +
-            $"Pokémon in type-coherent boxes: {summary.PokemonInTypeBoxes}    Pokémon in mixed boxes: {summary.PokemonInMixedBoxes}    Unused slots: {summary.UnusedSlots}";
+            $"Pokémon in type-coherent boxes: {summary.PokemonInTypeBoxes}    Pokémon in mixed boxes: {summary.PokemonInMixedBoxes}    Unused slots: {summary.UnusedSlots}{Environment.NewLine}" +
+            $"Box names to change: {plan.RenameOperations.Count}    Box backgrounds to change: {session.BackgroundChanges.Count}    Backgrounds preserved: {preserved}    Background mapping warnings: {mappingWarnings}{Environment.NewLine}" +
+            $"Matching backgrounds: {(session.AssignMatchingBackgrounds ? "Enabled" : "Disabled")}    Alternative backgrounds for repeated types: {(session.RotateAlternativeBackgrounds ? "Enabled" : "Disabled")}";
     }
 
     private static void PopulateLayout(TreeView tree, TypeOrganizationSession session)
@@ -127,6 +171,7 @@ internal sealed class TypeOrganizationPreviewWindow : Form
         var plan = session.Plan;
         var renames = plan.RenameOperations.ToDictionary(item => item.BoxIndex);
         var assignmentByReference = plan.Assignments.ToDictionary(item => item.Pokemon);
+        var backgrounds = session.BackgroundPreviews.ToDictionary(item => item.BoxIndex);
         foreach (var box in plan.Boxes)
         {
             var label = box.IsMixed
@@ -137,6 +182,14 @@ internal sealed class TypeOrganizationPreviewWindow : Form
 
             var boxNode = new TreeNode(
                 $"Box {box.TargetBoxIndex + 1}: {label} — {box.Pokemon.Count}/30");
+            if (backgrounds.TryGetValue(box.TargetBoxIndex, out var background))
+            {
+                var target = background.NewDisplayName ?? background.OriginalDisplayName;
+                var change = background.Changed
+                    ? $"{background.OriginalDisplayName} → {target}"
+                    : $"{target} (unchanged)";
+                boxNode.Nodes.Add($"Background: {change}");
+            }
             foreach (var reference in box.Pokemon)
             {
                 var entity = session.PokemonSnapshots[reference.StableId];

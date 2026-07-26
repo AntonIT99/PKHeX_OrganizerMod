@@ -36,12 +36,15 @@ internal static class SafeOrganizationApplier
         IReadOnlyDictionary<int, string> originalBoxNames,
         IEnumerable<(PokemonReference Pokemon, int TargetBox, int TargetSlot)> assignments,
         IReadOnlyList<BoxRenameOperation> renames,
-        IReadOnlySet<(int Box, int Slot)> preservedSlots)
+        IReadOnlySet<(int Box, int Slot)> preservedSlots,
+        IReadOnlyDictionary<int, int>? originalBackgrounds = null,
+        IReadOnlyList<BoxBackgroundChangeOperation>? backgroundChanges = null)
     {
         var save = saveFileProvider.SAV;
         if (!ReferenceEquals(save, expectedSave))
             throw new InvalidOperationException("A different save was loaded after the preview. Nothing was changed.");
         ValidateStillMatches(save, slotFingerprints, originalBoxNames);
+        ValidateBackgroundsStillMatch(save, originalBackgrounds);
 
         var materializedAssignments = assignments.ToArray();
         var backup = save.Clone();
@@ -83,6 +86,25 @@ internal static class SafeOrganizationApplier
                     boxNames.SetBoxName(rename.BoxIndex, rename.NewName);
             }
 
+            if (backgroundChanges is { Count: not 0 })
+            {
+                var catalog = new BoxBackgroundCatalog(save);
+                if (!catalog.CanAssign)
+                    throw new InvalidOperationException("The save no longer supports writable mapped box backgrounds.");
+                foreach (var change in backgroundChanges)
+                {
+                    try
+                    {
+                        catalog.SetWallpaper(change.BoxIndex, change.NewWallpaperId);
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException(
+                            $"Box {change.BoxIndex + 1}: background \"{change.NewDisplayName}\" could not be applied.", ex);
+                    }
+                }
+            }
+
             save.State.Edited = true;
             saveFileProvider.ReloadSlots();
         }
@@ -92,6 +114,25 @@ internal static class SafeOrganizationApplier
             save.State.Edited = wasEdited;
             saveFileProvider.ReloadSlots();
             throw;
+        }
+    }
+
+    private static void ValidateBackgroundsStillMatch(
+        SaveFile save,
+        IReadOnlyDictionary<int, int>? originalBackgrounds)
+    {
+        if (originalBackgrounds is not { Count: not 0 })
+            return;
+        var catalog = new BoxBackgroundCatalog(save);
+        if (!catalog.CanAssign)
+            throw new InvalidOperationException("The save no longer supports writable mapped box backgrounds.");
+        foreach (var pair in originalBackgrounds)
+        {
+            if (catalog.GetCurrentWallpaper(pair.Key) != pair.Value)
+            {
+                throw new InvalidOperationException(
+                    $"The background of box {pair.Key + 1} changed after the preview. Nothing was changed.");
+            }
         }
     }
 

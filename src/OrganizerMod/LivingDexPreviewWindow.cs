@@ -10,7 +10,7 @@ internal sealed class LivingDexPreviewWindow : Form
         ArgumentNullException.ThrowIfNull(session);
         var plan = session.Plan;
 
-        Text = "Preview — Living Dex Organizer";
+        Text = "Preview — Living Dex Sorting";
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(920, 720);
         MinimumSize = new Size(760, 580);
@@ -100,7 +100,7 @@ internal sealed class LivingDexPreviewWindow : Form
             _ => throw new ArgumentOutOfRangeException(),
         };
         return
-            $"Strategy: Living Dex Organizer    Mode: {mode}    Representative: {preference}{Environment.NewLine}" +
+            $"Strategy: Living Dex Sorting    Mode: {mode}    Representative: {preference}{Environment.NewLine}" +
             $"Scope: {definitionScope}{Environment.NewLine}" +
             $"Selected boxes: {summary.SelectedBoxes}    Included Pokémon: {summary.IncludedPokemon}    Preserved in place: {summary.PreservedPokemon}{Environment.NewLine}" +
             $"Expected entries: {summary.ExpectedEntries}    Filled: {summary.FilledEntries}    Missing: {summary.MissingEntries}    Completion: {summary.CompletionPercentage:F1}%{Environment.NewLine}" +

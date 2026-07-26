@@ -6,6 +6,7 @@ namespace OrganizerMod;
 public sealed class OrganizerWindow : Form
 {
     private readonly ISaveFileProvider saveFileProvider;
+    private readonly TableLayoutPanel layout;
     private readonly ComboBox function;
     private readonly Panel organizeOptionsPanel;
     private readonly ComboBox strategy;
@@ -27,11 +28,17 @@ public sealed class OrganizerWindow : Form
     private readonly DuplicateCriteriaEditor duplicateCriteria;
     private readonly Panel databaseOptionsPanel;
     private readonly PkmDatabaseImportOptionsControl databaseOptions;
+    private readonly Panel pidDuplicateOptionsPanel;
     private readonly CheckBox renameBoxes;
     private readonly Label renameWarning;
+    private readonly CheckBox assignMatchingBackgrounds;
+    private readonly CheckBox rotateAlternativeBackgrounds;
+    private readonly Label backgroundWarning;
     private readonly Label targetHeading;
     private readonly Label targetExplanation;
     private readonly CheckedListBox targetBoxes;
+    private readonly FlowLayoutPanel selectionButtons;
+    private readonly FlowLayoutPanel statusPanel;
     private readonly Label saveInformation;
     private readonly Label selectionInformation;
     private readonly Label validationMessage;
@@ -46,19 +53,22 @@ public sealed class OrganizerWindow : Form
 
         Text = "Organizer Mod";
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(820, 780);
-        MinimumSize = new Size(720, 650);
+        // The configuration text and selector labels are intentionally descriptive.
+        // Give them enough room at the default DPI so users do not need to resize
+        // the window before they can read the complete safety boundary wording.
+        ClientSize = new Size(980, 780);
+        MinimumSize = new Size(850, 650);
         StartPosition = FormStartPosition.CenterParent;
 
-        var layout = new TableLayoutPanel
+        layout = new TableLayoutPanel
         {
             ColumnCount = 1,
             Dock = DockStyle.Fill,
             Padding = new Padding(14),
-            RowCount = 11,
+            RowCount = 14,
         };
-        for (var row = 0; row < 11; row++)
-            layout.RowStyles.Add(new RowStyle(row == 7 ? SizeType.Percent : SizeType.AutoSize, row == 7 ? 100 : 0));
+        for (var row = 0; row < 14; row++)
+            layout.RowStyles.Add(new RowStyle(row == 10 ? SizeType.Percent : SizeType.AutoSize, row == 10 ? 100 : 0));
 
         var heading = new Label
         {
@@ -70,12 +80,13 @@ public sealed class OrganizerWindow : Form
 
         function = CreateDropDown();
         function.Items.Add("Organize Boxes");
-        function.Items.Add("Remove Duplicate Species");
         function.Items.Add("Import from PKM Database");
+        function.Items.Add("Remove Duplicate Species");
+        function.Items.Add("Remove Duplicates by PID");
 
         strategy = CreateDropDown();
         strategy.Items.Add("Type-Optimized Box Allocation");
-        strategy.Items.Add("Living Dex Organizer");
+        strategy.Items.Add("Living Dex Sorting");
         strategyDescription = CreateDescription(string.Empty);
 
         layoutMode = CreateDropDown();
@@ -158,12 +169,13 @@ public sealed class OrganizerWindow : Form
         duplicateShinyMode.Items.Add("Consider shiny and non-shiny the same species");
         duplicateShinyMode.Items.Add("Treat shiny and non-shiny separately");
         duplicateShinyMode.Items.Add("Ignore shiny Pokémon");
-        duplicateShinyMode.SelectedIndex = 0;
+        duplicateShinyMode.SelectedIndex = 1;
         duplicateCriteria = new DuplicateCriteriaEditor(
             DuplicateSpeciesRemovalService.GetOriginGames());
         duplicateOptionsPanel = CreateDuplicateOptionsPanel();
         databaseOptions = new PkmDatabaseImportOptionsControl();
         databaseOptionsPanel = WrapOptions(databaseOptions);
+        pidDuplicateOptionsPanel = CreatePidDuplicateOptionsPanel();
 
         var functionOptions = new TableLayoutPanel
         {
@@ -188,6 +200,7 @@ public sealed class OrganizerWindow : Form
         };
         functionHost.Controls.Add(duplicateOptionsPanel);
         functionHost.Controls.Add(databaseOptionsPanel);
+        functionHost.Controls.Add(pidDuplicateOptionsPanel);
         functionHost.Controls.Add(organizeOptionsPanel);
         functionOptions.Controls.Add(functionHost, 0, 2);
         functionOptions.SetColumnSpan(functionHost, 2);
@@ -199,6 +212,30 @@ public sealed class OrganizerWindow : Form
             Margin = new Padding(22, 0, 0, 8),
             Text = "Existing and proposed names will be shown and confirmed in the preview.",
         };
+        assignMatchingBackgrounds = new CheckBox
+        {
+            AutoSize = true,
+            Margin = new Padding(0, 4, 0, 2),
+            Text = "Change box backgrounds to match their assigned type",
+        };
+        rotateAlternativeBackgrounds = new CheckBox
+        {
+            AutoSize = true,
+            Enabled = false,
+            Margin = new Padding(22, 0, 0, 2),
+            Text = "Use alternative matching backgrounds for additional boxes of the same type",
+        };
+        backgroundWarning = new Label
+        {
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(22, 0, 0, 8),
+            MaximumSize = new Size(820, 0),
+            Text = "Matching backgrounds are assigned only to boxes used by the generated layout. Proposed changes are shown in the preview.",
+        };
+        assignMatchingBackgrounds.CheckedChanged += (_, _) =>
+            rotateAlternativeBackgrounds.Enabled =
+                assignMatchingBackgrounds.Enabled && assignMatchingBackgrounds.Checked;
 
         targetHeading = new Label
         {
@@ -223,7 +260,7 @@ public sealed class OrganizerWindow : Form
         targetBoxes.ItemCheck += PreventUnavailableSelection;
         targetBoxes.ItemCheck += UpdateSelectionAfterCheck;
 
-        var selectionButtons = new FlowLayoutPanel
+        selectionButtons = new FlowLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
@@ -243,7 +280,7 @@ public sealed class OrganizerWindow : Form
             ForeColor = Color.Firebrick,
             Margin = new Padding(0, 2, 0, 0),
         };
-        var statusPanel = new FlowLayoutPanel
+        statusPanel = new FlowLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
@@ -262,6 +299,9 @@ public sealed class OrganizerWindow : Form
             Margin = new Padding(0, 8, 0, 0),
         };
         var closeButton = new Button { AutoSize = true, DialogResult = DialogResult.Cancel, Text = "Close" };
+        // OrganizerWindow is opened modelessly from PKHeX, so DialogResult alone
+        // does not close it as it would for a modal dialog.
+        closeButton.Click += (_, _) => Close();
         previewButton = new Button { AutoSize = true, Text = "Preview organization…" };
         previewButton.Click += GeneratePreview;
         footer.Controls.Add(closeButton);
@@ -272,12 +312,15 @@ public sealed class OrganizerWindow : Form
         layout.Controls.Add(functionOptions, 0, 2);
         layout.Controls.Add(renameBoxes, 0, 3);
         layout.Controls.Add(renameWarning, 0, 4);
-        layout.Controls.Add(targetHeading, 0, 5);
-        layout.Controls.Add(targetExplanation, 0, 6);
-        layout.Controls.Add(targetBoxes, 0, 7);
-        layout.Controls.Add(selectionButtons, 0, 8);
-        layout.Controls.Add(statusPanel, 0, 9);
-        layout.Controls.Add(footer, 0, 10);
+        layout.Controls.Add(assignMatchingBackgrounds, 0, 5);
+        layout.Controls.Add(rotateAlternativeBackgrounds, 0, 6);
+        layout.Controls.Add(backgroundWarning, 0, 7);
+        layout.Controls.Add(targetHeading, 0, 8);
+        layout.Controls.Add(targetExplanation, 0, 9);
+        layout.Controls.Add(targetBoxes, 0, 10);
+        layout.Controls.Add(selectionButtons, 0, 11);
+        layout.Controls.Add(statusPanel, 0, 12);
+        layout.Controls.Add(footer, 0, 13);
         Controls.Add(layout);
         CancelButton = closeButton;
 
@@ -309,8 +352,21 @@ public sealed class OrganizerWindow : Form
         }
     }
 
-    public void SelectDuplicateSpeciesFunction() => function.SelectedIndex = 1;
-    public void SelectDatabaseImportFunction() => function.SelectedIndex = 2;
+    public void SelectDuplicateSpeciesFunction() => function.SelectedIndex = 2;
+    public void SelectDatabaseImportFunction() => function.SelectedIndex = 1;
+    public void SelectPidDuplicateFunction() => function.SelectedIndex = 3;
+
+    public void SelectTypeAllocationStrategy()
+    {
+        function.SelectedIndex = 0;
+        strategy.SelectedIndex = 0;
+    }
+
+    public void SelectLivingDexSortingStrategy()
+    {
+        function.SelectedIndex = 0;
+        strategy.SelectedIndex = 1;
+    }
 
     private Panel CreateTypeOptionsPanel()
     {
@@ -353,6 +409,27 @@ public sealed class OrganizerWindow : Form
         table.SetColumnSpan(duplicateCriteria, 2);
         table.Controls.Add(CreateDescription(
             "Disable any criterion or reorder with ↑ and ↓. If all criteria tie—or none are enabled—the earliest original box and slot is kept."), 1, 4);
+        return WrapOptions(table);
+    }
+
+    private Panel CreatePidDuplicateOptionsPanel()
+    {
+        var table = CreateOptionsTable(4);
+        table.Controls.Add(CreateDescription(
+            "Finds cloned Pokémon only when both PID and species match. The fixed scan scope includes the team, every storage box, and pension Pokémon; the box selector does not apply."), 1, 0);
+        table.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(0, 8, 0, 2),
+            Text = "Representative priority",
+        }, 0, 1);
+        table.Controls.Add(CreateDescription(
+            "1. Pension Pokémon are always kept because pension storage is read-only.\n" +
+            "2. Highest level.\n3. Highest experience.\n" +
+            "4. Team Pokémon over boxed Pokémon.\n5. A final indistinguishable tie is resolved randomly."), 1, 2);
+        table.Controls.Add(CreateDescription(
+            "The preview lists every Pokémon to delete, its location, the copy being kept, and all meaningful differences. No sorting or compaction is performed."), 1, 3);
         return WrapOptions(table);
     }
 
@@ -412,24 +489,44 @@ public sealed class OrganizerWindow : Form
             ? "Builds a configurable National Pokédex-ordered collection, chooses one deterministic representative per requested entry, and preserves every extra Pokémon in overflow."
             : "Assigns Pokémon dynamically so boxes share a common type wherever possible. Dual-type Pokémon may be assigned to either type. No changes are made until the preview is confirmed.";
         RefreshBoxSelection();
+        UpdateBackgroundOptionVisibility();
     }
 
     private void FunctionChanged()
     {
-        var duplicates = function.SelectedIndex == 1;
-        var database = function.SelectedIndex == 2;
-        organizeOptionsPanel.Visible = !duplicates && !database;
+        var duplicates = function.SelectedIndex == 2;
+        var database = function.SelectedIndex == 1;
+        var pidDuplicates = function.SelectedIndex == 3;
+        organizeOptionsPanel.Visible = !duplicates && !database && !pidDuplicates;
         duplicateOptionsPanel.Visible = duplicates;
         databaseOptionsPanel.Visible = database;
-        renameBoxes.Visible = !duplicates && !database;
-        renameWarning.Visible = !duplicates && !database;
+        pidDuplicateOptionsPanel.Visible = pidDuplicates;
+        renameBoxes.Visible = !duplicates && !database && !pidDuplicates;
+        renameWarning.Visible = !duplicates && !database && !pidDuplicates;
+        UpdateBackgroundOptionVisibility();
+        targetHeading.Visible = !pidDuplicates;
+        targetExplanation.Visible = !pidDuplicates;
+        targetBoxes.Visible = !pidDuplicates;
+        selectionButtons.Visible = !pidDuplicates;
+        statusPanel.Visible = true;
+        layout.RowStyles[10] = new RowStyle(
+            pidDuplicates ? SizeType.AutoSize : SizeType.Percent,
+            pidDuplicates ? 0 : 100);
         targetHeading.Text = database ? "Save boxes used for comparison and import" : duplicates ? "Boxes to scan for duplicate species" : "Boxes to organize";
         targetExplanation.Text = database
             ? "Pokémon in selected boxes will be checked for conflicts. Empty selected slots receive imports; replacements occur only when previewed. Unselected boxes remain unchanged."
             : duplicates ? "Pokémon in selected boxes will be analyzed. Unselected boxes do not participate and remain completely unchanged."
             : "Pokémon in selected boxes will be considered, and those same selected boxes may be reorganized as destinations. Unselected boxes remain completely unchanged.";
-        previewButton.Text = database ? "Scan and generate preview…" : duplicates ? "Preview duplicate removal…" : "Preview organization…";
+        previewButton.Text = pidDuplicates ? "Preview PID duplicate removal…" : database ? "Scan and generate preview…" : duplicates ? "Preview duplicate removal…" : "Preview organization…";
         RefreshBoxSelection();
+    }
+
+    private void UpdateBackgroundOptionVisibility()
+    {
+        var visible = function.SelectedIndex == 0 && strategy.SelectedIndex == 0;
+        assignMatchingBackgrounds.Visible = visible;
+        rotateAlternativeBackgrounds.Visible = visible;
+        backgroundWarning.Visible = visible;
     }
 
     private void UpdateTypeModeDescription()
@@ -460,34 +557,51 @@ public sealed class OrganizerWindow : Form
             targetBoxes.Items.Clear();
             IReadOnlyList<BoxSelectionItem> items;
             bool canRename;
-            if (function.SelectedIndex == 2)
+            bool canAssignBackgrounds;
+            if (function.SelectedIndex == 3)
+            {
+                items = [];
+                canRename = false;
+                canAssignBackgrounds = false;
+            }
+            else if (function.SelectedIndex == 1)
             {
                 var service = new PkmDatabaseImportService(saveFileProvider);
                 items = service.GetBoxSelection();
                 canRename = false;
+                canAssignBackgrounds = false;
             }
-            else if (function.SelectedIndex == 1)
+            else if (function.SelectedIndex == 2)
             {
                 var service = new DuplicateSpeciesRemovalService(saveFileProvider);
                 items = service.GetBoxSelection();
                 canRename = false;
+                canAssignBackgrounds = false;
             }
             else if (strategy.SelectedIndex == 1)
             {
                 var service = new LivingDexOrganizationService(saveFileProvider);
                 items = service.GetBoxSelection();
                 canRename = service.CanRenameBoxes;
+                canAssignBackgrounds = false;
             }
             else
             {
                 var service = new TypeOrganizationService(saveFileProvider);
                 items = service.GetBoxSelection();
                 canRename = service.CanRenameBoxes;
+                canAssignBackgrounds = service.CanAssignBackgrounds;
             }
             foreach (var item in items)
                 targetBoxes.Items.Add(item, item.IsAvailable);
             renameBoxes.Checked = false;
             renameBoxes.Enabled = canRename;
+            assignMatchingBackgrounds.Enabled = canAssignBackgrounds;
+            rotateAlternativeBackgrounds.Enabled =
+                canAssignBackgrounds && assignMatchingBackgrounds.Checked;
+            backgroundWarning.Text = canAssignBackgrounds
+                ? "Matching backgrounds are assigned only to boxes used by the generated layout. Proposed changes are shown in the preview."
+                : "Matching backgrounds are unavailable for this save format; existing backgrounds will be preserved.";
         }
         catch (Exception ex)
         {
@@ -495,6 +609,8 @@ public sealed class OrganizerWindow : Form
             targetBoxes.Items.Clear();
             renameBoxes.Checked = false;
             renameBoxes.Enabled = false;
+            assignMatchingBackgrounds.Enabled = false;
+            rotateAlternativeBackgrounds.Enabled = false;
         }
         finally
         {
@@ -509,9 +625,11 @@ public sealed class OrganizerWindow : Form
         {
             UseWaitCursor = true;
             previewButton.Enabled = false;
-            if (function.SelectedIndex == 2)
-                await GenerateDatabaseImportPreview();
+            if (function.SelectedIndex == 3)
+                GeneratePidDuplicatePreview();
             else if (function.SelectedIndex == 1)
+                await GenerateDatabaseImportPreview();
+            else if (function.SelectedIndex == 2)
                 GenerateDuplicateSpeciesPreview();
             else if (strategy.SelectedIndex == 1)
                 GenerateLivingDexPreview();
@@ -523,7 +641,7 @@ public sealed class OrganizerWindow : Form
             MessageBox.Show(
                 this,
                 ex.Message,
-                $"{strategy.SelectedItem} failed",
+                $"{function.SelectedItem} failed",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
@@ -541,7 +659,13 @@ public sealed class OrganizerWindow : Form
             ? TypeBoxLayoutMode.ExpandedByType
             : TypeBoxLayoutMode.Compact;
         var service = new TypeOrganizationService(saveFileProvider);
-        var session = service.CreatePlan(selected, mode, renameBoxes.Checked);
+        var session = service.CreatePlan(
+            selected,
+            mode,
+            renameBoxes.Checked,
+            assignMatchingBackgrounds.Enabled && assignMatchingBackgrounds.Checked,
+            assignMatchingBackgrounds.Enabled && assignMatchingBackgrounds.Checked &&
+            rotateAlternativeBackgrounds.Checked);
         if (!ShowErrors(session.Plan.IsValid, session.Plan.Errors, "Type-Optimized Box Allocation"))
             return;
         using var preview = new TypeOrganizationPreviewWindow(session);
@@ -567,7 +691,7 @@ public sealed class OrganizerWindow : Form
             OrganizationStorageUtilities.GetMaximumBoxNameLength(saveFileProvider.SAV));
         var service = new LivingDexOrganizationService(saveFileProvider);
         var session = service.CreatePlan(selected, options);
-        if (!ShowErrors(session.Plan.IsValid, session.Plan.Errors, "Living Dex Organizer"))
+        if (!ShowErrors(session.Plan.IsValid, session.Plan.Errors, "Living Dex Sorting"))
             return;
         using var preview = new LivingDexPreviewWindow(session);
         if (preview.ShowDialog(this) != DialogResult.OK)
@@ -624,6 +748,49 @@ public sealed class OrganizerWindow : Form
             MessageBoxIcon.Information);
     }
 
+    private void GeneratePidDuplicatePreview()
+    {
+        var service = new DuplicateRemovalService(saveFileProvider);
+        var session = service.CreateSession();
+        var plan = session.Plan;
+        if (plan.Removals.Count == 0)
+        {
+            MessageBox.Show(
+                this,
+                "No Pokémon with both matching PID and species were found across the team, boxes, and pension.",
+                "Remove Duplicates by PID",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        using var preview = new DuplicateRemovalPreviewWindow(
+            plan,
+            saveFileProvider.SAV.PartyCount);
+        if (preview.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        var confirm = MessageBox.Show(
+            this,
+            $"This will remove {plan.Removals.Count} Pokémon from {plan.DuplicateGroupCount} matching PID/species group(s).{Environment.NewLine}" +
+            "Pension Pokémon remain read-only. A complete in-memory snapshot will be restored if applying fails, and the save file will not be written automatically.",
+            "Confirm PID duplicate removal",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (confirm != DialogResult.OK)
+            return;
+
+        service.Apply(session);
+        RefreshSaveInfo();
+        MessageBox.Show(
+            this,
+            $"Removed {plan.Removals.Count} PID duplicate Pokémon. Review the result before saving in PKHeX.",
+            "Remove Duplicates by PID",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+    }
+
     private async Task GenerateDatabaseImportPreview()
     {
         var service = new PkmDatabaseImportService(saveFileProvider);
@@ -632,7 +799,12 @@ public sealed class OrganizerWindow : Form
             GetSelectedBoxes(),
             databaseOptions.PidMode,
             databaseOptions.SpeciesMode,
-            databaseOptions.Filters);
+            databaseOptions.SpeciesShinyGrouping,
+            databaseOptions.Filters,
+            databaseOptions.IncludeTeamInPidComparison,
+            databaseOptions.IncludePensionInPidComparison,
+            databaseOptions.AllowTeamReplacements,
+            databaseOptions.UseTeamSlotsForNewImports);
         if (!ShowErrors(session.Plan.IsValid, session.Plan.Errors, "Import from PKM Database"))
             return;
         using var preview = new PkmDatabaseImportPreviewWindow(session);
@@ -640,9 +812,15 @@ public sealed class OrganizerWindow : Form
             return;
         var imports = session.Plan.Imports.Count;
         var replacements = session.Plan.Replacements.Count;
+        var teamImports = session.Plan.Imports.Count(x => x.Destination.Area == ExistingPokemonArea.Team);
+        var teamReplacements = session.Plan.Replacements.Count(x => x.Existing.Area == ExistingPokemonArea.Team);
+        var teamNotice = teamImports + teamReplacements == 0
+            ? string.Empty
+            : $"{Environment.NewLine}This changes the Team: {teamImports} new member(s), {teamReplacements} replacement(s).";
         var confirm = MessageBox.Show(
             this,
             $"This will import {imports} Pokémon and replace {replacements} existing Pokémon.{Environment.NewLine}" +
+            teamNotice +
             "A complete in-memory snapshot will preserve replaced Pokémon and roll back failures. The save file will not be written automatically.",
             "Confirm PKM database import",
             MessageBoxButtons.OKCancel,
@@ -733,6 +911,18 @@ public sealed class OrganizerWindow : Form
 
     private void UpdateSelectionInformation()
     {
+        if (function.SelectedIndex == 3)
+        {
+            var supported = saveFileProvider.SAV.Generation >= 3;
+            selectionInformation.Text =
+                "Fixed scope: team · every storage box · pension (read-only priority)";
+            validationMessage.Text = supported
+                ? "Generate a preview to inspect every keep/remove decision."
+                : "Generation 1 and 2 Pokémon do not have meaningful personality IDs.";
+            previewButton.Enabled = supported;
+            return;
+        }
+
         var selected = targetBoxes.CheckedItems
             .OfType<BoxSelectionItem>()
             .Where(item => item.IsAvailable)
@@ -742,7 +932,7 @@ public sealed class OrganizerWindow : Form
         var minimumRequired = pokemonCount == 0
             ? 0
             : ((pokemonCount - 1) / LivingDexOrganizationPlanner.BoxCapacity) + 1;
-        selectionInformation.Text = function.SelectedIndex == 2
+        selectionInformation.Text = function.SelectedIndex == 1
             ? $"Selected boxes: {selected.Length} · Existing Pokémon: {pokemonCount} · Empty slots: {capacity - pokemonCount}"
             : $"Selected: {selected.Length} boxes · {pokemonCount} Pokémon · {capacity} slots{Environment.NewLine}" +
               $"Minimum required: {minimumRequired} boxes · Free capacity: {capacity - pokemonCount} slots";
@@ -760,7 +950,7 @@ public sealed class OrganizerWindow : Form
             selected.Length != 0 &&
             pokemonCount != 0 &&
             pokemonCount <= capacity;
-        if (function.SelectedIndex == 2)
+        if (function.SelectedIndex == 1)
         {
             previewButton.Enabled = selectionLoadError is null && selected.Length != 0 && databaseOptions.IsDatabaseAvailable;
             if (!databaseOptions.IsDatabaseAvailable)
@@ -782,7 +972,7 @@ public sealed class OrganizerWindow : Form
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
             Margin = new Padding(8, 0, 0, 6),
-            MaximumSize = new Size(670, 0),
+            MaximumSize = new Size(820, 0),
             Text = text,
         };
 }

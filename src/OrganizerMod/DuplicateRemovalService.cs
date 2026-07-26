@@ -3,9 +3,13 @@ using PKHeX.Core;
 
 namespace OrganizerMod;
 
+internal sealed record DuplicateRemovalSession(
+    SaveFile Save,
+    DuplicateRemovalPlan Plan);
+
 internal sealed class DuplicateRemovalService(ISaveFileProvider saveFileProvider)
 {
-    public DuplicateRemovalPlan CreatePlan()
+    public DuplicateRemovalSession CreateSession()
     {
         var save = saveFileProvider.SAV;
         if (save.Generation < 3)
@@ -16,16 +20,42 @@ internal sealed class DuplicateRemovalService(ISaveFileProvider saveFileProvider
 
         var plan = DuplicateRemovalPlanner.CreatePlan(ReadCandidates(save), Random.Shared);
         ValidatePlanStillMatches(save, plan);
-        return plan;
+        return new DuplicateRemovalSession(save, plan);
     }
 
-    public void Apply(DuplicateRemovalPlan plan)
+    public DuplicateRemovalPlan CreatePlan() => CreateSession().Plan;
+
+    public void Apply(DuplicateRemovalSession session)
     {
-        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(session);
         var save = saveFileProvider.SAV;
+        if (!ReferenceEquals(save, session.Save))
+            throw new InvalidOperationException(
+                "A different save was loaded after the preview. No duplicates were removed.");
 
-        ValidatePlanStillMatches(save, plan);
+        ValidatePlanStillMatches(save, session.Plan);
+        var backup = save.Clone();
+        var wasEdited = save.State.Edited;
+        try
+        {
+            ApplyRemovals(save, session.Plan);
+            save.State.Edited = true;
+            saveFileProvider.ReloadSlots();
+        }
+        catch
+        {
+            save.CopyChangesFrom(backup);
+            save.State.Edited = wasEdited;
+            saveFileProvider.ReloadSlots();
+            throw;
+        }
+    }
 
+    public void Apply(DuplicateRemovalPlan plan) =>
+        Apply(new DuplicateRemovalSession(saveFileProvider.SAV, plan));
+
+    private static void ApplyRemovals(SaveFile save, DuplicateRemovalPlan plan)
+    {
         foreach (var removal in plan.Removals
                      .Where(item => !item.Removed.Location.IsParty))
         {
@@ -44,8 +74,6 @@ internal sealed class DuplicateRemovalService(ISaveFileProvider saveFileProvider
         {
             save.DeletePartySlot(partySlot);
         }
-
-        saveFileProvider.ReloadSlots();
     }
 
     private static IReadOnlyList<DuplicatePokemon> ReadCandidates(SaveFile save)

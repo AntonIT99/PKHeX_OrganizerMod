@@ -11,13 +11,40 @@ The planner treats dual-type assignment as a global allocation problem. For smal
 - **Compact** maximizes full coherent boxes first. A partial type group is retained when it is at least half full and does not increase the number of boxes required for the residual layout; smaller inefficient groups are packed into `Mixed` overflow boxes. A lone represented type remains a coherent type box even when partial.
 - **Expanded by Type** keeps a separate adjacent box group for every represented type when the selected boxes permit it. If total slot capacity is sufficient but there are too few boxes for every partial group, the preview clearly warns that the remaining residual groups use best-effort mixed overflow. Nothing is applied unless the user accepts that preview.
 
+Type-coherent boxes are presented in this fixed order when applicable: Normal, Fire, Water, Electric, Grass, Ice, Fighting, Poison, Ground, Flying, Psychic, Bug, Rock, Ghost, Dragon, Dark, Steel, and Fairy. Multiple boxes assigned to the same type remain adjacent (for example, Water 1 immediately followed by Water 2). Mixed overflow boxes follow the typed boxes.
+
 The **Boxes to organize** checklist is the feature's explicit source, destination, and preservation boundary: Pokémon currently in selected boxes are reorganized, and only those same boxes may receive the result. Unselected boxes remain byte-for-byte outside the operation. Optional **Rename affected boxes** is unchecked by default. When enabled, localized PKHeX type names are used where available, names are safely fitted to the loaded save format, and every old-to-new name is part of the preview and organization plan.
 
-The preview reports the mode, usable and used boxes, organized Pokémon, full and partial type boxes, mixed boxes, coherent and mixed Pokémon counts, unused slots, complete proposed layout, and box renames. Cancel changes nothing. Apply first verifies that every selected slot and box name still matches the preview, snapshots the save, writes the complete target layout, applies approved names, marks the in-memory save edited, and refreshes PKHeX. A failure restores the snapshot. Organizer Mod never saves the file to disk automatically.
+Optional **Change box backgrounds to match their assigned type** is also unchecked by default and is independent of box renaming. With alternatives disabled, every repeated type box receives its first supported primary theme. With alternatives enabled, repeated boxes rotate deterministically through the supported mapped themes; for example, Water boxes use Deep Sea, River, Beach, then cycle back to Deep Sea. Mixed boxes prefer Checkered and fall back to White. Unsupported themes are skipped, and if none of a box's mappings exist its current background is preserved with a preview warning.
 
-## Living Dex Organizer
+| Type | Prioritized background themes |
+|---|---|
+| Normal | Checkered, White, City |
+| Fire | Volcano, Steppe, Desert |
+| Water | Deep Sea, River, Beach |
+| Electric | City, Pokémon Center, Metal |
+| Grass | Forest, River, Steppe |
+| Ice | Snow, White, Cave |
+| Fighting | Steppe, Rocky, City |
+| Poison | Cave, City, Deep Sea |
+| Ground | Desert, Rocky, Steppe |
+| Flying | Sky, Beach, Steppe |
+| Psychic | Pokémon Center, Sky, White |
+| Bug | Forest, Steppe, River |
+| Rock | Rocky, Cave, Desert |
+| Ghost | Cave, White, Pokémon Center |
+| Dragon | Volcano, Sky, Cave |
+| Dark | Cave, City, Metal |
+| Steel | Metal, City, Pokémon Center |
+| Fairy | White, Forest, Sky |
 
-Choose **Living Dex Organizer** in the Organizer window to arrange Pokémon in National Pokédex order. The selected boxes are a single explicit safety boundary: their Pokémon are considered as sources and the same boxes may be rewritten as destinations. Unselected boxes are never read into the plan, renamed, cleared, or otherwise changed.
+Organizer Mod currently enables semantic background assignment only where PKHeX exposes the standard wallpaper catalog reliably: Generation 3 storage saves, Generations 4–7, and Brilliant Diamond/Shining Pearl. Sword/Shield, Legends: Arceus, and Generation 9 expose generation-specific numeric wallpaper catalogs without a reliable shared semantic mapping in the current API, so the option is disabled and existing backgrounds remain untouched. Display names use PKHeX's current localization where available.
+
+The preview reports the mode, usable and used boxes, organized Pokémon, full and partial type boxes, mixed boxes, coherent and mixed Pokémon counts, unused slots, complete proposed layout, box renames, and resolved background changes. Cancel changes nothing. Apply first verifies that every selected slot, box name, and planned original wallpaper still matches the preview, snapshots the save, writes the complete target layout, applies approved names and backgrounds, marks the in-memory save edited, and refreshes PKHeX. A failure restores the complete snapshot. Organizer Mod never saves the file to disk automatically.
+
+## Living Dex Sorting
+
+Choose **Living Dex Sorting** from the Tools menu or in the Organizer window to arrange Pokémon in National Pokédex order. The selected boxes are a single explicit safety boundary: their Pokémon are considered as sources and the same boxes may be rewritten as destinations. Unselected boxes are never read into the plan, renamed, cleared, or otherwise changed.
 
 The first version provides:
 
@@ -67,14 +94,21 @@ Applying this function genuinely clears Pokémon slots. Always test with a copie
 
 ## Import from PKM Database
 
-**Import from PKM Database** is a standalone function that reads the database path configured by the running PKHeX instance, scans it recursively, and compares supported Pokémon files with occupied slots in the selected boxes. Selected boxes are the complete comparison and mutation boundary: they provide conflict matches, explicit replacement targets, and empty import destinations. Party data and unselected boxes are not considered or changed.
+**Import from PKM Database** is a standalone function that reads the database path configured by the running PKHeX instance, scans it recursively, and compares supported Pokémon files with occupied slots in the selected boxes. Selected boxes remain the complete writable boundary: they provide replacement targets and empty import destinations. Unselected boxes are not considered or changed.
+
+For the **Same PID** rule, optional checkboxes can also include the **Team** and **Pension** in the comparison. Pension is always read-only: its Pokémon can cause a PID match to be skipped or influence the level/EXP comparison, but are never replaced, cleared, moved, or used as import destinations.
+
+Team writes require separate, unchecked opt-ins. **Allow matching Team member to be replaced** permits a stronger database Pokémon to replace a same-PID, same-species Team member. **Use free Team slots for new imports** makes the available contiguous Team positions (up to six members) destination slots; those destinations are filled before selected empty box slots. The preview labels every Team target, the final confirmation calls out Team changes, and applying revalidates the Team count and contents before the snapshot/rollback-protected write. These options do not expand the separate species-match comparison beyond selected boxes.
 
 Files are ordered by normalized relative path and parsed once using PKHeX's current entity-detection APIs. Unrelated file sizes are ignored; malformed supported-size files become preview warnings instead of aborting the scan. Each compatible entity is converted through PKHeX's supported `EntityConverter` route to the loaded save format. Missing or incompatible transfer routes are skipped and reported; speculative incompatible/reflection conversions are rejected.
 
 Conflict resolution always applies in this order:
 
 1. **Same PID** — import additionally, skip, or replace when the incoming Pokémon has a higher level (or equal level and higher experience). Replacement applies only to the same species. A matching PID on a different species imports additionally with a warning.
-2. **Same species and shiny status** — import additionally, skip when an existing match exists, or choose the best database representative and replace a weaker save representative. Alternate forms share this species/shiny key in the current version.
+2. **Species match action** — always import another copy, skip when an existing match exists, or keep the most advanced representative and replace a weaker save representative. The separate **Shiny matching** choice controls the key:
+   - **Keep shiny and non-shiny separate** (default) gives each status its own species group.
+   - **Treat shiny and non-shiny as the same species** ignores shiny status, so a shiny may match or replace a non-shiny Pokémon and vice versa.
+   Alternate forms share the same species group in either mode.
 3. Candidates without a conclusive conflict become new imports.
 
 PID decisions are terminal and never pass through species conflict handling a second time. Multiple existing PID matches are reported; at most one deterministic target is replaced. The “best database representative” mode ranks by level, experience, then source path. It does not deduplicate other save Pokémon.
@@ -84,17 +118,22 @@ Database filters are combined with logical AND:
 - unrestricted or PKHeX-verified legal only;
 - optional stable origin-game ID;
 - optional minimum level from 1 through 100;
-- optional Male, Female, or Genderless value.
+- optional Male, Female, or Genderless value;
+- optional shiny-only or non-shiny-only status.
 
-New imports use empty selected slots in box/slot order. Replacements do not consume empty capacity. If all planned imports do not fit, the plan is invalid and nothing can be applied. The preview separates new imports, prominent replacements, skipped entries, and scan warnings, and shows filter, compatibility, and capacity statistics.
+All enabled filters must match and are applied before PID/species conflict handling. New imports use empty selected slots in box/slot order. Replacements do not consume empty capacity. If all planned imports do not fit, the plan is invalid and nothing can be applied. The preview separates new imports, prominent replacements, skipped entries, and scan warnings, and shows shiny grouping, filter, compatibility, and capacity statistics.
 
-After preview approval, a second confirmation defaults to Cancel. Applying revalidates the same save, every selected slot, box names, and the content hashes of source database files. Organizer Mod then creates a complete in-memory snapshot, applies replacements followed by imports, refreshes PKHeX, and restores the snapshot on any failure. It never saves the file to disk automatically.
+After preview approval, a second confirmation defaults to Cancel. Applying revalidates the same save, every selected slot, box names, any included Team/Pension comparison entries and Team destination capacity, and the content hashes of source database files. Organizer Mod then creates a complete in-memory snapshot, applies replacements followed by imports, refreshes PKHeX, and restores the snapshot on any failure. It never saves the file to disk automatically.
 
 PKHeX does not currently expose a single reliable shiny-lock catalog covering every species, form, encounter source, and generation. Shiny missing entries are therefore explicitly presented as collection coverage gaps, not assertions that each entry is obtainable. The preview repeats this limitation.
 
-The **Tools > Organizer Mod > Remove dupplicates** command removes repeated party or box Pokémon that share both a PID and species. Pension Pokémon are included in the search but are read-only and always kept ahead of party or box candidates. Otherwise, the command keeps the highest-level Pokémon, then the one with the most EXP, then a party member; a true final tie is resolved randomly.
+## Remove Duplicates by PID
 
-Before mutation, a resizable, scrollable review table shows every Pokémon to be deleted, its exact team/box location, the Pokémon being kept, and the relevant level, EXP, and priority differences. Explicit confirmation is required. Generation 1 and 2 saves are not supported because those formats do not have meaningful PIDs.
+Choose **Remove Duplicates by PID** from the Organizer window's **Function** selector, or use its direct Tools-menu shortcut. Its fixed scope includes the party, every storage box, and pension Pokémon, so the box-selection controls are intentionally hidden for this function. Only Pokémon sharing both PID and species are duplicates; an identical PID on a different species is protected by the species guard.
+
+Pension Pokémon are read-only and always kept ahead of party or box candidates. Otherwise, the function keeps the highest-level Pokémon, then the one with the most EXP, then a party member; a true final tie is resolved randomly.
+
+Before mutation, a resizable, scrollable review table shows every Pokémon to be deleted, its exact team/box location, the Pokémon being kept, and the relevant level, EXP, and priority differences. A second confirmation defaults to Cancel. Applying verifies that the same save and every planned candidate still match, creates a complete in-memory snapshot, and rolls back on failure. It never compacts boxes or saves to disk automatically. Generation 1 and 2 saves are not supported because those formats do not have meaningful PIDs.
 
 ## Prerequisites
 

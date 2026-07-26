@@ -40,41 +40,53 @@ public sealed class OrganizerPlugin : IPlugin
         var menuItem = new ToolStripMenuItem(Name)
         {
             Name = "Menu_OrganizerMod",
+            Image = MenuIcons.Organizer,
         };
 
         var openItem = new ToolStripMenuItem("Open Organizer")
         {
             Name = "Menu_OrganizerMod_Open",
+            Image = MenuIcons.Organizer,
         };
         openItem.Click += OpenOrganizerWindow;
 
         var removeDuplicateSpeciesItem = new ToolStripMenuItem("Remove Duplicate Species…")
         {
             Name = "Menu_OrganizerMod_RemoveDuplicateSpecies",
+            Image = MenuIcons.DuplicateSpecies,
         };
         removeDuplicateSpeciesItem.Click += OpenDuplicateSpeciesWindow;
         var importDatabaseItem = new ToolStripMenuItem("Import from PKM Database…")
         {
             Name = "Menu_OrganizerMod_ImportDatabase",
+            Image = MenuIcons.ImportDatabase,
         };
         importDatabaseItem.Click += OpenDatabaseImportWindow;
 
         var removeDuplicatesItem = new ToolStripMenuItem("Remove duplicates by PID…")
         {
             Name = "Menu_OrganizerMod_RemoveDuplicates",
+            Image = MenuIcons.DuplicatePid,
         };
-        removeDuplicatesItem.Click += RemoveDuplicates;
+        removeDuplicatesItem.Click += OpenPidDuplicateWindow;
 
         menuItem.DropDownItems.Add(openItem);
         var typeAllocationItem = new ToolStripMenuItem("Type-Optimized Box Allocation…")
         {
             Name = "Menu_OrganizerMod_TypeAllocation",
+            Image = MenuIcons.TypeAllocation,
         };
-        typeAllocationItem.Click += OpenOrganizerWindow;
+        typeAllocationItem.Click += OpenTypeAllocationWindow;
         menuItem.DropDownItems.Add(typeAllocationItem);
-        menuItem.DropDownItems.Add(removeDuplicateSpeciesItem);
+        var livingDexItem = new ToolStripMenuItem("Living Dex Sorting…")
+        {
+            Name = "Menu_OrganizerMod_LivingDexSorting",
+            Image = MenuIcons.Organizer,
+        };
+        livingDexItem.Click += OpenLivingDexSortingWindow;
+        menuItem.DropDownItems.Add(livingDexItem);
         menuItem.DropDownItems.Add(importDatabaseItem);
-        menuItem.DropDownItems.Add(new ToolStripSeparator());
+        menuItem.DropDownItems.Add(removeDuplicateSpeciesItem);
         menuItem.DropDownItems.Add(removeDuplicatesItem);
         toolsMenu.DropDownItems.Add(menuItem);
     }
@@ -97,59 +109,33 @@ public sealed class OrganizerPlugin : IPlugin
             window.Activate();
     }
 
-    private void RemoveDuplicates(object? sender, EventArgs e)
-    {
-        var owner = menuStrip?.FindForm();
-        try
-        {
-            var service = new DuplicateRemovalService(SaveFileEditor);
-            var plan = service.CreatePlan();
-            if (plan.Removals.Count == 0)
-            {
-                MessageBox.Show(
-                    owner,
-                    "No duplicate Pokémon with matching personality IDs were found in the party or boxes.",
-                    Name,
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-                return;
-            }
-
-            using var preview = new DuplicateRemovalPreviewWindow(
-                plan,
-                SaveFileEditor.SAV.PartyCount);
-            if (preview.ShowDialog(owner) != DialogResult.OK)
-                return;
-
-            service.Apply(plan);
-            window?.RefreshSaveInfo();
-            MessageBox.Show(
-                owner,
-                $"Removed {plan.Removals.Count} duplicate Pokémon. Save the file in PKHeX to persist the changes.",
-                Name,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                owner,
-                ex.Message,
-                $"{Name} — Duplicate removal failed",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
-        }
-    }
-
     private void OpenDuplicateSpeciesWindow(object? sender, EventArgs e)
     {
         OpenOrganizerWindow(sender, e);
         window?.SelectDuplicateSpeciesFunction();
     }
 
+    private void OpenTypeAllocationWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectTypeAllocationStrategy();
+    }
+
+    private void OpenLivingDexSortingWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectLivingDexSortingStrategy();
+    }
+
     private void OpenDatabaseImportWindow(object? sender, EventArgs e)
     {
         OpenOrganizerWindow(sender, e);
         window?.SelectDatabaseImportFunction();
+    }
+
+    private void OpenPidDuplicateWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectPidDuplicateFunction();
     }
 }

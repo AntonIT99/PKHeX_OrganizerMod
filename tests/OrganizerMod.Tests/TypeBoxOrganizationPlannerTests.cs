@@ -289,6 +289,48 @@ public sealed class TypeBoxOrganizationPlannerTests
     }
 
     [Fact]
+    public void TypeBoxesFollowStandardOrderAndSameTypeBoxesStayAdjacent()
+    {
+        PokemonElementType[] standardOrder =
+        [
+            PokemonElementType.Normal,
+            PokemonElementType.Fire,
+            PokemonElementType.Water,
+            PokemonElementType.Electric,
+            PokemonElementType.Grass,
+            PokemonElementType.Ice,
+            PokemonElementType.Fighting,
+            PokemonElementType.Poison,
+            PokemonElementType.Ground,
+            PokemonElementType.Flying,
+            PokemonElementType.Psychic,
+            PokemonElementType.Bug,
+            PokemonElementType.Rock,
+            PokemonElementType.Ghost,
+            PokemonElementType.Dragon,
+            PokemonElementType.Dark,
+            PokemonElementType.Steel,
+            PokemonElementType.Fairy,
+        ];
+        var pokemon = new List<OrganizablePokemon>();
+        var nextId = 0;
+        foreach (var type in standardOrder)
+        {
+            var count = type == PokemonElementType.Water ? 31 : 1;
+            pokemon.AddRange(Many(nextId, count, type));
+            nextId += count;
+        }
+
+        var plan = Plan(pokemon.ToArray(), 19, TypeBoxLayoutMode.ExpandedByType);
+        var expected = standardOrder
+            .SelectMany(type => type == PokemonElementType.Water ? new[] { type, type } : new[] { type })
+            .ToArray();
+
+        Assert.True(plan.IsValid);
+        Assert.Equal(expected, plan.Boxes.Select(box => box.SharedType!.Value));
+    }
+
+    [Fact]
     public void MultipleMixedBoxesAreNumbered()
     {
         var pokemon = Enum.GetValues<PokemonElementType>()

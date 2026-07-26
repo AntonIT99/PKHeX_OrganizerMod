@@ -4,21 +4,29 @@ namespace OrganizerMod.Domain;
 
 public enum SamePidImportMode { ImportAdditionally, ReplaceWhenMoreAdvanced, DoNotImport }
 public enum SameSpeciesShinyImportMode { ImportAdditionally, BestDatabaseRepresentativeReplaceWhenBetter, DoNotImportWhenExisting }
+public enum SpeciesShinyGroupingMode { Separate, Combined }
 public enum LegalityFilterMode { Regardless, OnlyLegal }
 public enum DatabaseDecisionKind { NewImport, Replacement, Skipped }
 public enum DatabaseDecisionRule { Filter, SamePid, SameSpeciesAndShiny, NoConflict, Compatibility, Capacity }
+public enum ExistingPokemonArea { Box, Team, Pension }
 
 public sealed record PkmDatabaseFilterOptions(
     LegalityFilterMode Legality,
     int? OriginGame,
     int? MinimumLevel,
-    PokemonGenderPreference? Gender);
+    PokemonGenderPreference? Gender,
+    bool? IsShiny = null);
 
 public sealed record PkmDatabaseImportOptions(
     SamePidImportMode SamePidMode,
     SameSpeciesShinyImportMode SameSpeciesShinyMode,
     PkmDatabaseFilterOptions Filters,
-    IReadOnlySet<int> SelectedBoxIndices);
+    IReadOnlySet<int> SelectedBoxIndices,
+    bool IncludeTeamInPidComparison = false,
+    bool IncludePensionInPidComparison = false,
+    SpeciesShinyGroupingMode SpeciesShinyGrouping = SpeciesShinyGroupingMode.Separate,
+    bool AllowTeamReplacements = false,
+    bool UseTeamSlotsForNewImports = false);
 
 public sealed record DatabasePokemonCandidate(
     string StableId,
@@ -45,9 +53,17 @@ public sealed record ExistingSavePokemon(
     int OriginGameId,
     PokemonGenderPreference Gender,
     int BoxIndex,
-    int SlotIndex);
+    int SlotIndex,
+    ExistingPokemonArea Area = ExistingPokemonArea.Box,
+    int FacilityIndex = 0)
+{
+    public bool CanReplace => Area == ExistingPokemonArea.Box;
+}
 
-public readonly record struct EmptySaveSlot(int BoxIndex, int SlotIndex);
+public readonly record struct EmptySaveSlot(
+    int BoxIndex,
+    int SlotIndex,
+    ExistingPokemonArea Area = ExistingPokemonArea.Box);
 
 public sealed record DatabaseImportDecision(
     DatabasePokemonCandidate Candidate,
@@ -72,7 +88,8 @@ public sealed record DatabaseFilterStatistics(
     int ExcludedByLegality,
     int ExcludedByOrigin,
     int ExcludedByMinimumLevel,
-    int ExcludedByGender);
+    int ExcludedByGender,
+    int ExcludedByShiny);
 
 public sealed record DatabaseImportSummary(
     int FilesScanned,

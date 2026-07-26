@@ -27,7 +27,12 @@ internal sealed class TypeOrganizationSession(
     IReadOnlyList<int> selectedBoxes,
     IReadOnlyDictionary<string, PKM> pokemonSnapshots,
     IReadOnlyDictionary<(int Box, int Slot), string> slotFingerprints,
-    IReadOnlyDictionary<int, string> boxNames)
+    IReadOnlyDictionary<int, string> boxNames,
+    bool assignMatchingBackgrounds,
+    bool rotateAlternativeBackgrounds,
+    IReadOnlyList<BoxBackgroundPreview> backgroundPreviews,
+    IReadOnlyList<BoxBackgroundChangeOperation> backgroundChanges,
+    IReadOnlyDictionary<int, int> originalBackgrounds)
 {
     public SaveFile Save { get; } = save;
     public TypeOrganizationPlan Plan { get; } = plan;
@@ -35,6 +40,11 @@ internal sealed class TypeOrganizationSession(
     public IReadOnlyDictionary<string, PKM> PokemonSnapshots { get; } = pokemonSnapshots;
     public IReadOnlyDictionary<(int Box, int Slot), string> SlotFingerprints { get; } = slotFingerprints;
     public IReadOnlyDictionary<int, string> BoxNames { get; } = boxNames;
+    public bool AssignMatchingBackgrounds { get; } = assignMatchingBackgrounds;
+    public bool RotateAlternativeBackgrounds { get; } = rotateAlternativeBackgrounds;
+    public IReadOnlyList<BoxBackgroundPreview> BackgroundPreviews { get; } = backgroundPreviews;
+    public IReadOnlyList<BoxBackgroundChangeOperation> BackgroundChanges { get; } = backgroundChanges;
+    public IReadOnlyDictionary<int, int> OriginalBackgrounds { get; } = originalBackgrounds;
 }
 
 internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider)
@@ -42,6 +52,7 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
     private readonly TypeBoxOrganizationPlanner planner = new();
 
     public bool CanRenameBoxes => saveFileProvider.SAV is IBoxDetailName;
+    public bool CanAssignBackgrounds => new BoxBackgroundCatalog(saveFileProvider.SAV).CanAssign;
 
     public IReadOnlyList<BoxSelectionItem> GetBoxSelection()
     {
@@ -84,7 +95,9 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
     public TypeOrganizationSession CreatePlan(
         IReadOnlyCollection<int> selectedBoxIndices,
         TypeBoxLayoutMode mode,
-        bool renameBoxes)
+        bool renameBoxes,
+        bool assignMatchingBackgrounds,
+        bool rotateAlternativeBackgrounds)
     {
         ArgumentNullException.ThrowIfNull(selectedBoxIndices);
         var save = GetSupportedSave();
@@ -147,19 +160,30 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
         var boxes = selected
             .Select(box => new BoxState(box, boxNames[box], save.BoxSlotCount))
             .ToArray();
+        var backgroundCatalog = new BoxBackgroundCatalog(save);
         var options = new TypeBoxOrganizerOptions(
             mode,
             renameBoxes,
             OrganizationStorageUtilities.GetMaximumBoxNameLength(save),
-            GetLocalizedTypeNames());
+            GetLocalizedTypeNames(),
+            assignMatchingBackgrounds,
+            rotateAlternativeBackgrounds,
+            backgroundCatalog.SupportedThemes);
         var plan = planner.CreatePlan(pokemon, boxes, options);
+        var (backgroundPreviews, backgroundChanges, originalBackgrounds) =
+            ResolveBackgrounds(plan, backgroundCatalog);
         return new TypeOrganizationSession(
             save,
             plan,
             selected,
             new ReadOnlyDictionary<string, PKM>(snapshots),
             new ReadOnlyDictionary<(int Box, int Slot), string>(fingerprints),
-            new ReadOnlyDictionary<int, string>(boxNames));
+            new ReadOnlyDictionary<int, string>(boxNames),
+            assignMatchingBackgrounds,
+            assignMatchingBackgrounds && rotateAlternativeBackgrounds,
+            backgroundPreviews,
+            backgroundChanges,
+            originalBackgrounds);
     }
 
     public void Apply(TypeOrganizationSession session)
@@ -178,7 +202,68 @@ internal sealed class TypeOrganizationService(ISaveFileProvider saveFileProvider
             session.Plan.Assignments.Select(item =>
                 (item.Pokemon, item.TargetBoxIndex, item.TargetSlotIndex)),
             session.Plan.RenameOperations,
-            new HashSet<(int Box, int Slot)>());
+            new HashSet<(int Box, int Slot)>(),
+            session.OriginalBackgrounds,
+            session.BackgroundChanges);
+    }
+
+    private static (
+        IReadOnlyList<BoxBackgroundPreview> Previews,
+        IReadOnlyList<BoxBackgroundChangeOperation> Changes,
+        IReadOnlyDictionary<int, int> Originals)
+        ResolveBackgrounds(TypeOrganizationPlan plan, BoxBackgroundCatalog catalog)
+    {
+        if (plan.BackgroundThemes.Count == 0)
+            return ([], [], new ReadOnlyDictionary<int, int>(new Dictionary<int, int>()));
+
+        var previews = new List<BoxBackgroundPreview>(plan.BackgroundThemes.Count);
+        var changes = new List<BoxBackgroundChangeOperation>();
+        var originals = new Dictionary<int, int>();
+        foreach (var planned in plan.BackgroundThemes)
+        {
+            if (!catalog.CanAssign)
+            {
+                previews.Add(new BoxBackgroundPreview(
+                    planned.BoxIndex, planned.AssignedType, planned.IsMixed, planned.Theme, planned.Choice,
+                    null, null, "Unavailable", null, false, true, planned.Warning));
+                continue;
+            }
+
+            var originalId = catalog.GetCurrentWallpaper(planned.BoxIndex);
+            var originalName = catalog.GetDisplayName(originalId);
+            originals.Add(planned.BoxIndex, originalId);
+            if (planned.Theme is not { } theme ||
+                !catalog.TryResolveTheme(theme, out var resolved))
+            {
+                previews.Add(new BoxBackgroundPreview(
+                    planned.BoxIndex, planned.AssignedType, planned.IsMixed, planned.Theme,
+                    BackgroundThemeChoice.Preserved, originalId, null, originalName, null,
+                    false, true, planned.Warning));
+                continue;
+            }
+
+            var changed = originalId != resolved.WallpaperId;
+            previews.Add(new BoxBackgroundPreview(
+                planned.BoxIndex, planned.AssignedType, planned.IsMixed, theme, planned.Choice,
+                originalId, resolved.WallpaperId, originalName, resolved.DisplayName,
+                changed, false, planned.Warning));
+            if (changed)
+            {
+                changes.Add(new BoxBackgroundChangeOperation(
+                    planned.BoxIndex,
+                    theme,
+                    planned.Choice,
+                    originalId,
+                    resolved.WallpaperId,
+                    originalName,
+                    resolved.DisplayName));
+            }
+        }
+
+        return (
+            Array.AsReadOnly(previews.ToArray()),
+            Array.AsReadOnly(changes.ToArray()),
+            new ReadOnlyDictionary<int, int>(originals));
     }
 
     private SaveFile GetSupportedSave()
