@@ -1,6 +1,10 @@
 # Organizer Mod
 
-Organizer Mod is an early-development PKHeX Windows Forms plugin intended to plan and preview safe Pokémon storage organization. The current implementation is deliberately small: it proves plugin loading, adds **Tools > Organizer Mod**, displays basic information about the active save, and provides a UI-independent domain model with tests. It does not sort, move, or mutate Pokémon yet.
+Organizer Mod is an early-development PKHeX Windows Forms plugin intended to plan and preview safe Pokémon storage organization. It adds **Tools > Organizer Mod**, displays basic information about the active save, and provides a UI-independent domain model with tests.
+
+The **Tools > Organizer Mod > Remove dupplicates** command removes repeated party or box Pokémon that share both a PID and species. Pension Pokémon are included in the search but are read-only and always kept ahead of party or box candidates. Otherwise, the command keeps the highest-level Pokémon, then the one with the most EXP, then a party member; a true final tie is resolved randomly.
+
+Before mutation, a resizable, scrollable review table shows every Pokémon to be deleted, its exact team/box location, the Pokémon being kept, and the relevant level, EXP, and priority differences. Explicit confirmation is required. Generation 1 and 2 saves are not supported because those formats do not have meaningful PIDs.
 
 ## Prerequisites
 
@@ -105,7 +109,7 @@ The ZIP preserves `plugins/OrganizerMod/`. To install it, close PKHeX and extrac
 
 ## Safety
 
-Organizer Mod is experimental. Test only with copied save files and keep known-good backups. Planned organization behavior must calculate and preview moves before any future save mutation, must request confirmation for destructive operations, and must never overwrite occupied slots implicitly.
+Organizer Mod is experimental. Test only with copied save files and keep known-good backups. Duplicate removal mutates the in-memory save after confirmation; use PKHeX's normal save/export workflow to persist it. Organization behavior must calculate and preview changes before mutation, must request confirmation for destructive operations, and must never overwrite occupied slots implicitly.
 
 ## PKHeX compatibility
 

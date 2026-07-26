@@ -41,7 +41,22 @@ public sealed class OrganizerPlugin : IPlugin
         {
             Name = "Menu_OrganizerMod",
         };
-        menuItem.Click += OpenOrganizerWindow;
+
+        var openItem = new ToolStripMenuItem("Open Organizer")
+        {
+            Name = "Menu_OrganizerMod_Open",
+        };
+        openItem.Click += OpenOrganizerWindow;
+
+        var removeDuplicatesItem = new ToolStripMenuItem("Remove dupplicates")
+        {
+            Name = "Menu_OrganizerMod_RemoveDuplicates",
+        };
+        removeDuplicatesItem.Click += RemoveDuplicates;
+
+        menuItem.DropDownItems.Add(openItem);
+        menuItem.DropDownItems.Add(new ToolStripSeparator());
+        menuItem.DropDownItems.Add(removeDuplicatesItem);
         toolsMenu.DropDownItems.Add(menuItem);
     }
 
@@ -61,5 +76,49 @@ public sealed class OrganizerPlugin : IPlugin
             window.Show(menuStrip?.FindForm());
         else
             window.Activate();
+    }
+
+    private void RemoveDuplicates(object? sender, EventArgs e)
+    {
+        var owner = menuStrip?.FindForm();
+        try
+        {
+            var service = new DuplicateRemovalService(SaveFileEditor);
+            var plan = service.CreatePlan();
+            if (plan.Removals.Count == 0)
+            {
+                MessageBox.Show(
+                    owner,
+                    "No duplicate Pokémon with matching personality IDs were found in the party or boxes.",
+                    Name,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            using var preview = new DuplicateRemovalPreviewWindow(
+                plan,
+                SaveFileEditor.SAV.PartyCount);
+            if (preview.ShowDialog(owner) != DialogResult.OK)
+                return;
+
+            service.Apply(plan);
+            window?.RefreshSaveInfo();
+            MessageBox.Show(
+                owner,
+                $"Removed {plan.Removals.Count} duplicate Pokémon. Save the file in PKHeX to persist the changes.",
+                Name,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                owner,
+                ex.Message,
+                $"{Name} — Duplicate removal failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 }

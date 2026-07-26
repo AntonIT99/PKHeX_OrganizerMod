@@ -60,13 +60,13 @@ public sealed class OrganizerWindow : Form
                 $"Loaded save: {save.GetType().Name}{Environment.NewLine}" +
                 $"Game: {save.Version}  |  Generation: {save.Generation}{Environment.NewLine}" +
                 $"Trainer: {save.OT}  |  Boxes: {save.BoxCount}{Environment.NewLine}" +
-                "No save data is modified by this window.";
+                "This status window does not modify save data.";
         }
         catch (Exception ex)
         {
             saveInformation.Text =
                 $"Save information is currently unavailable ({ex.GetType().Name}).{Environment.NewLine}" +
-                "No save data is modified by this window.";
+                "This status window does not modify save data.";
         }
     }
 }
