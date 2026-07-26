@@ -1,4 +1,8 @@
-# Install Organizer Mod from the production ZIP
+# Organizer Mod
+
+Organizer Mod is an early-development PKHeX Windows Forms plugin intended to plan and preview safe Pokémon storage organization. It adds **Tools > Organizer Mod**, displays basic information about the active save, and provides a UI-independent domain model with tests.
+
+# Installation
 
 1. Download `OrganizerMod-<version>.zip` from the release artifacts.
 2. Close PKHeX.
@@ -35,10 +39,6 @@ The generated artifact is written to:
 ```text
 artifacts/OrganizerMod-<version>.zip
 ```
-
-# Organizer Mod
-
-Organizer Mod is an early-development PKHeX Windows Forms plugin intended to plan and preview safe Pokémon storage organization. It adds **Tools > Organizer Mod**, displays basic information about the active save, and provides a UI-independent domain model with tests.
 
 ## Type-Optimized Box Allocation
 
