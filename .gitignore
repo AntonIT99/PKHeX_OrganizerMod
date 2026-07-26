@@ -1,0 +1,26 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# IDE and user-specific files
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+_ReSharper*/
+*.DotSettings.user
+
+# Test and coverage output
+TestResults/
+coverage/
+coverage.*
+
+# Generated packages and development plugin copies
+artifacts/
+external/PKHeX/PKHeX.WinForms/bin/Debug/net10.0-windows/win-x64/plugins/OrganizerMod/
+
+# Local operating-system files
+.DS_Store
+Thumbs.db

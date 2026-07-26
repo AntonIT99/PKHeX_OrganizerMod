@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug PKHeX with Organizer Mod",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/external/PKHeX/PKHeX.WinForms/bin/Debug/net10.0-windows/win-x64/PKHeX.exe",
+      "cwd": "${workspaceFolder}/external/PKHeX/PKHeX.WinForms/bin/Debug/net10.0-windows/win-x64",
+      "stopAtEntry": false
+    }
+  ]
+}

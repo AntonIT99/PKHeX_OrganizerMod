@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>OrganizerMod</RootNamespace>
+    <AssemblyName>OrganizerMod</AssemblyName>
+    <Version>0.1.0</Version>
+    <GenerateDependencyFile>true</GenerateDependencyFile>
+
+    <PKHeXTargetFramework>net10.0-windows</PKHeXTargetFramework>
+    <PKHeXRuntimeIdentifier>win-x64</PKHeXRuntimeIdentifier>
+    <PKHeXDebugOutput>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\external\PKHeX\PKHeX.WinForms\bin\Debug\$(PKHeXTargetFramework)\$(PKHeXRuntimeIdentifier)'))</PKHeXDebugOutput>
+    <PKHeXDebugPluginDirectory>$(PKHeXDebugOutput)\plugins\OrganizerMod</PKHeXDebugPluginDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OrganizerMod.Domain\OrganizerMod.Domain.csproj" />
+    <ProjectReference Include="..\..\external\PKHeX\PKHeX.Core\PKHeX.Core.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="CopyDebugPluginToPKHeX"
+          AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_OrganizerModDebugFile Include="$(TargetDir)OrganizerMod.dll" />
+      <_OrganizerModDebugFile Include="$(TargetDir)OrganizerMod.Domain.dll" />
+      <_OrganizerModDebugFile Include="$(TargetDir)OrganizerMod.deps.json" />
+      <_OrganizerModDebugFile Include="$(TargetDir)OrganizerMod.pdb" />
+      <_OrganizerModDebugFile Include="$(TargetDir)OrganizerMod.Domain.pdb" />
+    </ItemGroup>
+    <MakeDir Directories="$(PKHeXDebugPluginDirectory)" />
+    <Copy SourceFiles="@(_OrganizerModDebugFile)"
+          DestinationFolder="$(PKHeXDebugPluginDirectory)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

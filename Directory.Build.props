@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    PKHeX has its own nearer Directory.Build.props inside external/PKHeX, so
+    these settings apply only to the three Organizer Mod project names.
+  -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'OrganizerMod'
+                         Or '$(MSBuildProjectName)' == 'OrganizerMod.Domain'
+                         Or '$(MSBuildProjectName)' == 'OrganizerMod.Tests'">
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <LangVersion>14</LangVersion>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
