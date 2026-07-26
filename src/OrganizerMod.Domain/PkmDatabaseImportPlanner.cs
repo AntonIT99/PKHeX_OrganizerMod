@@ -37,19 +37,23 @@ public sealed class PkmDatabaseImportPlanner
         var (eligible, filtered, stats) = Filter(ordered, options.Filters);
         var decisions = new List<DatabaseImportDecision>(ordered.Length);
         decisions.AddRange(filtered);
+        var compatible = new List<DatabasePokemonCandidate>(eligible.Count);
+        foreach (var candidate in eligible)
+        {
+            if (candidate.IsCompatible)
+                compatible.Add(candidate);
+            else
+                decisions.Add(Skip(candidate, DatabaseDecisionRule.Compatibility, "Cannot be represented by the loaded save format."));
+        }
+        var batchEligible = ReduceSamePidSpeciesBatch(compatible, options.SamePidMode, decisions);
         var pidIndex = pidComparison.GroupBy(x => x.Pid).ToDictionary(x => x.Key, x => x.ToArray());
         var speciesIndex = selectedExisting.GroupBy(x => SpeciesKey(x.Species, x.IsShiny, options.SpeciesShinyGrouping))
             .ToDictionary(x => x.Key, x => x.ToArray());
         var unresolved = new List<DatabasePokemonCandidate>();
         var replacementTargets = new HashSet<(ExistingPokemonArea Area, int Facility, int Box, int Slot)>();
 
-        foreach (var candidate in eligible)
+        foreach (var candidate in batchEligible)
         {
-            if (!candidate.IsCompatible)
-            {
-                decisions.Add(Skip(candidate, DatabaseDecisionRule.Compatibility, "Cannot be represented by the loaded save format."));
-                continue;
-            }
             if (!pidIndex.TryGetValue(candidate.Pid, out var pidMatches))
             {
                 unresolved.Add(candidate);
@@ -133,6 +137,42 @@ public sealed class PkmDatabaseImportPlanner
             incompatible,
             stats);
         return new DatabaseImportPlan(options, decisions, summary, warnings.Distinct().Order(StringComparer.Ordinal), errors);
+    }
+
+    private static IReadOnlyList<DatabasePokemonCandidate> ReduceSamePidSpeciesBatch(
+        IReadOnlyList<DatabasePokemonCandidate> candidates,
+        SamePidImportMode mode,
+        ICollection<DatabaseImportDecision> decisions)
+    {
+        if (mode != SamePidImportMode.ReplaceWhenMoreAdvanced)
+            return candidates;
+
+        var retained = new List<DatabasePokemonCandidate>(candidates.Count);
+        foreach (var group in candidates.GroupBy(candidate => (candidate.Pid, candidate.Species))
+                     .OrderBy(group => group.Key.Pid)
+                     .ThenBy(group => group.Key.Species))
+        {
+            var ranked = group
+                .OrderByDescending(candidate => candidate.Level)
+                .ThenByDescending(candidate => candidate.Experience)
+                .ThenBy(candidate => candidate.RelativeSourcePath, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(candidate => candidate.StableId, StringComparer.Ordinal)
+                .ToArray();
+            var best = ranked[0];
+            retained.Add(best);
+            foreach (var duplicate in ranked.Skip(1))
+            {
+                decisions.Add(Skip(
+                    duplicate,
+                    DatabaseDecisionRule.SamePid,
+                    $"Another database Pokémon with the same PID and species is more advanced or equivalent; {best.RelativeSourcePath} was retained for this import batch."));
+            }
+        }
+
+        return retained
+            .OrderBy(candidate => candidate.RelativeSourcePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.StableId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static (List<DatabasePokemonCandidate> Eligible, List<DatabaseImportDecision> Filtered, DatabaseFilterStatistics Stats) Filter(

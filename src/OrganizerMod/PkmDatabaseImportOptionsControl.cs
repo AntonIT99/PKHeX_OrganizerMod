@@ -38,7 +38,7 @@ internal sealed class PkmDatabaseImportOptionsControl : UserControl
         pidMode = DropDown("Import as an additional Pokémon", "Replace when the database Pokémon is more advanced", "Do not import database Pokémon with an existing PID");
         pidMode.SelectedIndex = 1;
         AddRow(table, 1, "Same PID:", pidMode);
-        table.Controls.Add(Description("Same species: replace only for higher level, or equal level and higher experience. Different species: import additionally."), 1, 2);
+        table.Controls.Add(Description("Same species: the database batch first keeps only its highest-level, then highest-experience copy for each PID. That copy replaces a save Pokémon only when more advanced. Different species sharing a PID remain separate."), 1, 2);
         includeTeam = new CheckBox { AutoSize = true, Text = "Include Team in same-PID comparison" };
         allowTeamReplacements = new CheckBox { AutoSize = true, Text = "Allow matching Team member to be replaced" };
         useTeamSlots = new CheckBox { AutoSize = true, Text = "Use free Team slots for new imports" };

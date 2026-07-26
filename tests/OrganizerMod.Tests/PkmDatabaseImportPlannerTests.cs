@@ -73,6 +73,84 @@ public sealed class PkmDatabaseImportPlannerTests
     }
 
     [Fact]
+    public void ReplacementModeKeepsOnlyBestSamePidSpeciesCandidateFromDatabaseBatch()
+    {
+        var plan = Plan([
+            Db("weak", pid: 7, species: 25, level: 40, exp: 500),
+            Db("best", pid: 7, species: 25, level: 60, exp: 100),
+            Db("middle", pid: 7, species: 25, level: 60, exp: 99),
+        ]);
+
+        Assert.Single(plan.Imports);
+        Assert.Equal("best", plan.Imports.Single().Candidate.StableId);
+        Assert.Equal(2, plan.Decisions.Count(x => x.Kind == DatabaseDecisionKind.Skipped && x.Rule == DatabaseDecisionRule.SamePid));
+        Assert.All(plan.Decisions.Where(x => x.Candidate.StableId is "weak" or "middle"),
+            decision => Assert.Contains("same PID and species", decision.Reason, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void BatchBestCandidateIsTheOnlyOneConsideredForReplacement()
+    {
+        var plan = Plan([
+            Db("weak", pid: 7, level: 55),
+            Db("best", pid: 7, level: 70),
+        ], [Save("save", pid: 7, level: 50)]);
+
+        Assert.Single(plan.Replacements);
+        Assert.Equal("best", plan.Replacements.Single().Candidate.StableId);
+        Assert.Empty(plan.Imports);
+    }
+
+    [Fact]
+    public void BatchReductionDoesNotCombineDifferentSpeciesSharingPid()
+    {
+        var plan = Plan([
+            Db("bulbasaur", pid: 7, species: 1),
+            Db("ivysaur", pid: 7, species: 2),
+        ]);
+
+        Assert.Equal(2, plan.Imports.Count);
+    }
+
+    [Fact]
+    public void BatchReductionUsesPathAsStableFinalTieBreaker()
+    {
+        var plan = Plan([
+            Db("z", path: "z.pk9", pid: 7, level: 50, exp: 100),
+            Db("a", path: "a.pk9", pid: 7, level: 50, exp: 100),
+        ]);
+
+        Assert.Single(plan.Imports);
+        Assert.Equal("a", plan.Imports.Single().Candidate.StableId);
+    }
+
+    [Fact]
+    public void BatchReductionIsLimitedToReplaceWhenMoreAdvancedMode()
+    {
+        var plan = Plan([
+            Db("a", pid: 7),
+            Db("b", pid: 7),
+        ], pid: SamePidImportMode.ImportAdditionally);
+
+        Assert.Equal(2, plan.Imports.Count);
+    }
+
+    [Fact]
+    public void FiltersAndCompatibilityApplyBeforeBatchReduction()
+    {
+        var filters = new PkmDatabaseFilterOptions(LegalityFilterMode.OnlyLegal, null, null, null);
+        var plan = Plan([
+            Db("filtered", pid: 7, level: 100, legal: false),
+            Db("incompatible", pid: 7, level: 90, compatible: false),
+            Db("eligible", pid: 7, level: 60),
+        ], filters: filters);
+
+        Assert.Single(plan.Imports);
+        Assert.Equal("eligible", plan.Imports.Single().Candidate.StableId);
+        Assert.Contains(plan.Decisions, x => x.Candidate.StableId == "incompatible" && x.Rule == DatabaseDecisionRule.Compatibility);
+    }
+
+    [Fact]
     public void MultiplePidMatchesSelectBestExistingThenEarliest()
     {
         var existing = new[] { Save("weak", pid: 7, level: 20), Save("late", pid: 7, level: 50, box: 1), Save("early", pid: 7, level: 50, slot: 2) };
@@ -272,7 +350,7 @@ public sealed class PkmDatabaseImportPlannerTests
     public void DeterministicAllocationUsesSelectedEmptySlotsOnly()
     {
         var slots = new[] { new EmptySaveSlot(2, 1), new EmptySaveSlot(0, 5), new EmptySaveSlot(1, 0) };
-        var plan = Plan([Db("b", path: "b"), Db("a", path: "a")], slots: slots, selected: new HashSet<int> { 0, 2 });
+        var plan = Plan([Db("b", path: "b", pid: 2), Db("a", path: "a", pid: 1)], slots: slots, selected: new HashSet<int> { 0, 2 });
         Assert.Equal(new EmptySaveSlot(0, 5), plan.Imports[0].Destination);
         Assert.Equal(new EmptySaveSlot(2, 1), plan.Imports[1].Destination);
     }

@@ -18,7 +18,7 @@
 - Keep Living Dex entry keys language-neutral; PKHeX adapters own species/form definitions and display names.
 - Represent excluded Pokémon as fixed preserved slots in the plan, and route all organization strategies through the shared validated snapshot/rollback applier.
 - Keep species-duplicate removal ranking lexicographic and deterministic. PID-duplicate removal deliberately preserves its pension/level/EXP/party priority and random final tie. Both clear only explicitly previewed slots and never compact boxes as a side effect.
-- Keep PKM database import conflict resolution in the domain with PID precedence, and require selected-slot, optional Team/Pension comparison, plus source-file stale validation before applying imports or replacements. Pension is comparison-only; Team writes require explicit opt-in, exact preview targets, and Team stale validation.
+- Keep PKM database import conflict resolution in the domain with PID precedence. In replace-when-more-advanced mode, reduce eligible compatible database candidates by PID and species before comparing against the save. Require selected-slot, optional Team/Pension comparison, plus source-file stale validation before applying imports or replacements. Pension is comparison-only; Team writes require explicit opt-in, exact preview targets, and Team stale validation.
 - Keep Smart Team Builder eligibility and ordered preference evaluation in the domain. Its apply path must exchange complete existing entities only, validate both Team and selected-box fingerprints, and preserve every affected Pokémon exactly once.
 
 ## Working commands

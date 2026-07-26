@@ -132,7 +132,7 @@ Files are ordered by normalized relative path and parsed once using PKHeX's curr
 
 Conflict resolution always applies in this order:
 
-1. **Same PID** — import additionally, skip, or replace when the incoming Pokémon has a higher level (or equal level and higher experience). Replacement applies only to the same species. A matching PID on a different species imports additionally with a warning.
+1. **Same PID** — import additionally, skip, or replace when the incoming Pokémon has a higher level (or equal level and higher experience). In replacement mode, eligible compatible database records are first grouped by PID and species, and only the most advanced record in each batch group continues; equivalent ties use normalized source path deterministically. Replacement applies only to the same species. A matching PID on a different species imports additionally with a warning.
 2. **Species match action** — always import another copy, skip when an existing match exists, or keep the most advanced representative and replace a weaker save representative. The separate **Shiny matching** choice controls the key:
    - **Keep shiny and non-shiny separate** (default) gives each status its own species group.
    - **Treat shiny and non-shiny as the same species** ignores shiny status, so a shiny may match or replace a non-shiny Pokémon and vice versa.
