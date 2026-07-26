@@ -48,13 +48,32 @@ public sealed class OrganizerPlugin : IPlugin
         };
         openItem.Click += OpenOrganizerWindow;
 
-        var removeDuplicatesItem = new ToolStripMenuItem("Remove dupplicates")
+        var removeDuplicateSpeciesItem = new ToolStripMenuItem("Remove Duplicate Species…")
+        {
+            Name = "Menu_OrganizerMod_RemoveDuplicateSpecies",
+        };
+        removeDuplicateSpeciesItem.Click += OpenDuplicateSpeciesWindow;
+        var importDatabaseItem = new ToolStripMenuItem("Import from PKM Database…")
+        {
+            Name = "Menu_OrganizerMod_ImportDatabase",
+        };
+        importDatabaseItem.Click += OpenDatabaseImportWindow;
+
+        var removeDuplicatesItem = new ToolStripMenuItem("Remove duplicates by PID…")
         {
             Name = "Menu_OrganizerMod_RemoveDuplicates",
         };
         removeDuplicatesItem.Click += RemoveDuplicates;
 
         menuItem.DropDownItems.Add(openItem);
+        var typeAllocationItem = new ToolStripMenuItem("Type-Optimized Box Allocation…")
+        {
+            Name = "Menu_OrganizerMod_TypeAllocation",
+        };
+        typeAllocationItem.Click += OpenOrganizerWindow;
+        menuItem.DropDownItems.Add(typeAllocationItem);
+        menuItem.DropDownItems.Add(removeDuplicateSpeciesItem);
+        menuItem.DropDownItems.Add(importDatabaseItem);
         menuItem.DropDownItems.Add(new ToolStripSeparator());
         menuItem.DropDownItems.Add(removeDuplicatesItem);
         toolsMenu.DropDownItems.Add(menuItem);
@@ -120,5 +139,17 @@ public sealed class OrganizerPlugin : IPlugin
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
+    }
+
+    private void OpenDuplicateSpeciesWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectDuplicateSpeciesFunction();
+    }
+
+    private void OpenDatabaseImportWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectDatabaseImportFunction();
     }
 }
