@@ -34,7 +34,11 @@ internal sealed record BoxBackgroundChangeOperation(
 
 internal sealed class BoxBackgroundCatalog
 {
-    private static readonly BoxBackgroundTheme[] StandardThemes =
+    // IBoxDetailWallpaper exposes the same normalized indices used by PKHeX's
+    // wallpaper selector and drawing resources. Some save formats transform
+    // these values internally (Pt/HGSS special wallpapers and BDSP's +1
+    // storage), but their Get/SetBoxWallpaper implementations handle that.
+    private static readonly BoxBackgroundTheme[] CommonThemeOrder =
     [
         BoxBackgroundTheme.Forest,
         BoxBackgroundTheme.City,
@@ -48,9 +52,9 @@ internal sealed class BoxBackgroundCatalog
         BoxBackgroundTheme.DeepSea,
         BoxBackgroundTheme.River,
         BoxBackgroundTheme.Sky,
-        BoxBackgroundTheme.Checkered,
         BoxBackgroundTheme.PokemonCenter,
         BoxBackgroundTheme.Metal,
+        BoxBackgroundTheme.Checkered,
         BoxBackgroundTheme.White,
     ];
 
@@ -85,11 +89,11 @@ internal sealed class BoxBackgroundCatalog
         ArgumentNullException.ThrowIfNull(save);
         wallpapers = save as IBoxDetailWallpaper;
         wallpaperCount = GetWallpaperCount(save);
-        var semanticCount = GetSemanticWallpaperCount(save);
-        available = Enumerable.Range(0, semanticCount)
+        var themeOrder = GetThemeOrder(save);
+        available = Enumerable.Range(0, themeOrder.Count)
             .Select(id =>
             {
-                var theme = StandardThemes[id];
+                var theme = themeOrder[id];
                 return new AvailableBoxBackground(id, theme, GetKnownDisplayName(id, theme), wallpapers is not null);
             })
             .ToArray();
@@ -141,16 +145,24 @@ internal sealed class BoxBackgroundCatalog
             : EnglishNames[theme];
     }
 
-    private static int GetSemanticWallpaperCount(SaveFile save)
+    private static IReadOnlyList<BoxBackgroundTheme> GetThemeOrder(SaveFile save)
     {
         if (save is not IBoxDetailWallpaper)
-            return 0;
+            return [];
+
+        // PKHeX presents the first sixteen backgrounds in this common order
+        // for each supported family. Restrict the mapping to explicitly
+        // inspected save types so a future generation cannot silently inherit
+        // an incompatible order.
         return save.Generation switch
         {
-            3 when save is SAV3 or SAV3RSBox => StandardThemes.Length,
-            4 or 5 or 6 or 7 => StandardThemes.Length,
-            8 when save is SAV8BS => StandardThemes.Length,
-            _ => 0,
+            3 when save is SAV3 or SAV3RSBox => CommonThemeOrder,
+            4 when save is SAV4Sinnoh or SAV4HGSS => CommonThemeOrder,
+            5 when save is SAV5 => CommonThemeOrder,
+            6 when save is SAV6XY or SAV6AO => CommonThemeOrder,
+            7 when save is SAV7 => CommonThemeOrder,
+            8 when save is SAV8BS => CommonThemeOrder,
+            _ => [],
         };
     }
 

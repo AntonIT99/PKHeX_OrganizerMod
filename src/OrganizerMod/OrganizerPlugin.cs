@@ -68,6 +68,12 @@ public sealed class OrganizerPlugin : IPlugin
             Image = MenuIcons.Organizer,
         };
         smartTeamItem.Click += OpenSmartTeamBuilderWindow;
+        var cleanDatabaseItem = new ToolStripMenuItem("Clean PKM Database…")
+        {
+            Name = "Menu_OrganizerMod_CleanDatabase",
+            Image = MenuIcons.ImportDatabase,
+        };
+        cleanDatabaseItem.Click += OpenDatabaseCleanupWindow;
 
         var removeDuplicatesItem = new ToolStripMenuItem("Remove duplicates by PID…")
         {
@@ -107,6 +113,7 @@ public sealed class OrganizerPlugin : IPlugin
         menuItem.DropDownItems.Add(customItem);
         menuItem.DropDownItems.Add(importDatabaseItem);
         menuItem.DropDownItems.Add(smartTeamItem);
+        menuItem.DropDownItems.Add(cleanDatabaseItem);
         menuItem.DropDownItems.Add(removeDuplicateSpeciesItem);
         menuItem.DropDownItems.Add(removeDuplicatesItem);
         toolsMenu.DropDownItems.Add(menuItem);
@@ -176,5 +183,11 @@ public sealed class OrganizerPlugin : IPlugin
     {
         OpenOrganizerWindow(sender, e);
         window?.SelectSmartTeamBuilderFunction();
+    }
+
+    private void OpenDatabaseCleanupWindow(object? sender, EventArgs e)
+    {
+        OpenOrganizerWindow(sender, e);
+        window?.SelectDatabaseCleanupFunction();
     }
 }

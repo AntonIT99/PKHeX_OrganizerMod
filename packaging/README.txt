@@ -20,6 +20,8 @@ uses the same preview, confirmation, snapshot, and rollback safeguards.
 Smart Team Builder exchanges complete existing Pokémon between the current Team and
 selected boxes using eligibility filters, ordered preferences, a complete preview,
 stale-plan validation, and snapshot rollback.
+Clean PKM Database conservatively identifies duplicate snapshots of the same Pokémon,
+lets you choose one keeper per group, and moves other files into a recovery folder.
 PKM Database Import can optionally compare same PIDs with Team and Pension Pokémon;
 Pension is read-only, while explicit opt-ins can replace matching Team members or
 use free Team slots before selected boxes.

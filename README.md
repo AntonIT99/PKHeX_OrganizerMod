@@ -1,3 +1,41 @@
+# Install Organizer Mod from the production ZIP
+
+1. Download `OrganizerMod-<version>.zip` from the release artifacts.
+2. Close PKHeX.
+3. Open the folder containing `PKHeX.exe`.
+4. Extract the ZIP directly into that folder, preserving its directory structure.
+5. Confirm that these files now exist:
+
+   ```text
+   PKHeX.exe
+   plugins/
+     OrganizerMod/
+       OrganizerMod.dll
+       OrganizerMod.Domain.dll
+       OrganizerMod.deps.json
+       README.txt
+   ```
+
+6. Start PKHeX and open **Tools > Organizer Mod**.
+
+Do not place the DLLs beside `PKHeX.exe` or copy the enclosing ZIP filename as an
+extra directory. The plugin assemblies must remain together under
+`plugins/OrganizerMod/`. Organizer Mod does not include PKHeX assemblies; install
+it into a compatible PKHeX build. Because the plugin is in early development,
+test destructive functions only with copied save files.
+
+Developers can create the same production ZIP by running:
+
+```powershell
+.\scripts\package-release.ps1
+```
+
+The generated artifact is written to:
+
+```text
+artifacts/OrganizerMod-<version>.zip
+```
+
 # Organizer Mod
 
 Organizer Mod is an early-development PKHeX Windows Forms plugin intended to plan and preview safe Pokémon storage organization. It adds **Tools > Organizer Mod**, displays basic information about the active save, and provides a UI-independent domain model with tests.
@@ -154,6 +192,16 @@ All enabled filters must match and are applied before PID/species conflict handl
 After preview approval, a second confirmation defaults to Cancel. Applying revalidates the same save, every selected slot, box names, any included Team/Pension comparison entries and Team destination capacity, and the content hashes of source database files. Organizer Mod then creates a complete in-memory snapshot, applies replacements followed by imports, and registers every successfully written database Pokémon through PKHeX's generation-aware Pokédex update path. This marks supported entries as seen and caught and records additional form, gender, shiny, or language details where the loaded save format supports them. PKHeX is refreshed afterward, and the complete snapshot—including Pokédex state—is restored on any failure. Organizer Mod never saves the file to disk automatically.
 
 PKHeX does not currently expose a single reliable shiny-lock catalog covering every species, form, encounter source, and generation. Shiny missing entries are therefore explicitly presented as collection coverage gaps, not assertions that each entry is obtainable. The preview repeats this limitation.
+
+## Clean PKM Database
+
+**Clean PKM Database** is a standalone, recoverable database-maintenance function. It recursively scans PKHeX's configured PKM database and groups files only when a conservative set of identity invariants is identical: PID, species, origin game, met and egg dates/locations, met level, original trainer identity, language, ball, gender, original nature, IVs, and egg status.
+
+Values normally changed through gameplay are deliberately excluded from identity matching, including current level and experience, moves, nickname, EVs, friendship, held item, ribbons, marks, memories, and current handling trainer. Form is displayed but not used as an identity invariant because some species can change form legitimately in-game. This conservative model favors false negatives over accidentally grouping two different Pokémon.
+
+The review window lists every member of every duplicate-instance group and requires exactly one checked keeper per group. **Keep highest level and experience** selects deterministically by current level, then experience, then database path. The user can override that choice for every group before confirmation.
+
+Cleanup never permanently deletes the unchecked files. Immediately before applying, Organizer Mod re-hashes every reviewed file and rejects a stale preview if anything changed. It then moves unchecked duplicates into a timestamped sibling directory named `<database>.OrganizerMod Backups`; original relative paths are preserved. If any move fails, completed moves are rolled back. The active save is never modified.
 
 ## Smart Team Builder
 

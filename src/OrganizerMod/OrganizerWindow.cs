@@ -36,6 +36,7 @@ public sealed class OrganizerWindow : Form
     private readonly Panel pidDuplicateOptionsPanel;
     private readonly Panel teamBuilderOptionsPanel;
     private readonly SmartTeamBuilderOptionsControl teamBuilderOptions;
+    private readonly Panel databaseCleanupOptionsPanel;
     private readonly CheckBox renameBoxes;
     private readonly Label renameWarning;
     private readonly CheckBox assignMatchingBackgrounds;
@@ -63,8 +64,8 @@ public sealed class OrganizerWindow : Form
         // The configuration text and selector labels are intentionally descriptive.
         // Give them enough room at the default DPI so users do not need to resize
         // the window before they can read the complete safety boundary wording.
-        ClientSize = new Size(980, 780);
-        MinimumSize = new Size(850, 650);
+        ClientSize = new Size(980, 900);
+        MinimumSize = new Size(850, 720);
         StartPosition = FormStartPosition.CenterParent;
 
         layout = new TableLayoutPanel
@@ -91,6 +92,7 @@ public sealed class OrganizerWindow : Form
         function.Items.Add("Remove Duplicate Species");
         function.Items.Add("Remove Duplicates by PID");
         function.Items.Add("Smart Team Builder");
+        function.Items.Add("Clean PKM Database");
 
         strategy = CreateDropDown();
         strategy.Items.Add("Type-Optimized Box Allocation");
@@ -216,6 +218,8 @@ public sealed class OrganizerWindow : Form
             Margin = new Padding(0),
         };
         teamBuilderOptionsPanel.Controls.Add(teamBuilderOptions);
+        databaseCleanupOptionsPanel = WrapOptions(CreateDescription(
+            "Finds multiple files that represent the same Pokémon instance using immutable encounter and trainer identity fields. You choose one file to keep per group; the others are moved to a recovery folder."));
 
         var functionOptions = new TableLayoutPanel
         {
@@ -242,6 +246,7 @@ public sealed class OrganizerWindow : Form
         functionHost.Controls.Add(databaseOptionsPanel);
         functionHost.Controls.Add(pidDuplicateOptionsPanel);
         functionHost.Controls.Add(teamBuilderOptionsPanel);
+        functionHost.Controls.Add(databaseCleanupOptionsPanel);
         functionHost.Controls.Add(organizeOptionsPanel);
         functionOptions.Controls.Add(functionHost, 0, 2);
         functionOptions.SetColumnSpan(functionHost, 2);
@@ -397,6 +402,7 @@ public sealed class OrganizerWindow : Form
     public void SelectDatabaseImportFunction() => function.SelectedIndex = 1;
     public void SelectPidDuplicateFunction() => function.SelectedIndex = 3;
     public void SelectSmartTeamBuilderFunction() => function.SelectedIndex = 4;
+    public void SelectDatabaseCleanupFunction() => function.SelectedIndex = 5;
 
     public void SelectTypeAllocationStrategy()
     {
@@ -564,22 +570,24 @@ public sealed class OrganizerWindow : Form
         var database = function.SelectedIndex == 1;
         var pidDuplicates = function.SelectedIndex == 3;
         var teamBuilder = function.SelectedIndex == 4;
-        organizeOptionsPanel.Visible = !duplicates && !database && !pidDuplicates && !teamBuilder;
+        var databaseCleanup = function.SelectedIndex == 5;
+        organizeOptionsPanel.Visible = !duplicates && !database && !pidDuplicates && !teamBuilder && !databaseCleanup;
         duplicateOptionsPanel.Visible = duplicates;
         databaseOptionsPanel.Visible = database;
         pidDuplicateOptionsPanel.Visible = pidDuplicates;
         teamBuilderOptionsPanel.Visible = teamBuilder;
-        renameBoxes.Visible = !duplicates && !database && !pidDuplicates && !teamBuilder;
-        renameWarning.Visible = !duplicates && !database && !pidDuplicates && !teamBuilder;
+        databaseCleanupOptionsPanel.Visible = databaseCleanup;
+        renameBoxes.Visible = !duplicates && !database && !pidDuplicates && !teamBuilder && !databaseCleanup;
+        renameWarning.Visible = !duplicates && !database && !pidDuplicates && !teamBuilder && !databaseCleanup;
         UpdateBackgroundOptionVisibility();
-        targetHeading.Visible = !pidDuplicates;
-        targetExplanation.Visible = !pidDuplicates;
-        targetBoxes.Visible = !pidDuplicates;
-        selectionButtons.Visible = !pidDuplicates;
+        targetHeading.Visible = !pidDuplicates && !databaseCleanup;
+        targetExplanation.Visible = !pidDuplicates && !databaseCleanup;
+        targetBoxes.Visible = !pidDuplicates && !databaseCleanup;
+        selectionButtons.Visible = !pidDuplicates && !databaseCleanup;
         statusPanel.Visible = true;
         layout.RowStyles[10] = new RowStyle(
-            pidDuplicates ? SizeType.AutoSize : SizeType.Percent,
-            pidDuplicates ? 0 : 100);
+            pidDuplicates || databaseCleanup ? SizeType.AutoSize : SizeType.Percent,
+            pidDuplicates || databaseCleanup ? 0 : 100);
         targetHeading.Text = teamBuilder ? "Boxes available for candidates and Team exchanges" :
             database ? "Save boxes used for comparison and import" : duplicates ? "Boxes to scan for duplicate species" : "Boxes to organize";
         targetExplanation.Text = database
@@ -587,7 +595,7 @@ public sealed class OrganizerWindow : Form
             : teamBuilder ? "The current Team and Pokémon in selected boxes form the candidate pool. Selected boxes may receive displaced Team Pokémon; unselected boxes remain completely unchanged."
             : duplicates ? "Pokémon in selected boxes will be analyzed. Unselected boxes do not participate and remain completely unchanged."
             : "Pokémon in selected boxes will be considered, and those same selected boxes may be reorganized as destinations. Unselected boxes remain completely unchanged.";
-        previewButton.Text = teamBuilder ? "Generate Team preview…" : pidDuplicates ? "Preview PID duplicate removal…" : database ? "Scan and generate preview…" : duplicates ? "Preview duplicate removal…" : "Preview organization…";
+        previewButton.Text = databaseCleanup ? "Scan database for duplicate instances…" : teamBuilder ? "Generate Team preview…" : pidDuplicates ? "Preview PID duplicate removal…" : database ? "Scan and generate preview…" : duplicates ? "Preview duplicate removal…" : "Preview organization…";
         RefreshBoxSelection();
     }
 
@@ -628,7 +636,7 @@ public sealed class OrganizerWindow : Form
             IReadOnlyList<BoxSelectionItem> items;
             bool canRename;
             bool canAssignBackgrounds;
-            if (function.SelectedIndex == 3)
+            if (function.SelectedIndex is 3 or 5)
             {
                 items = [];
                 canRename = false;
@@ -712,6 +720,8 @@ public sealed class OrganizerWindow : Form
             previewButton.Enabled = false;
             if (function.SelectedIndex == 3)
                 GeneratePidDuplicatePreview();
+            else if (function.SelectedIndex == 5)
+                GenerateDatabaseCleanupPreview();
             else if (function.SelectedIndex == 4)
                 GenerateSmartTeamPreview();
             else if (function.SelectedIndex == 1)
@@ -949,6 +959,31 @@ public sealed class OrganizerWindow : Form
             "Smart Team Builder", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
+    private void GenerateDatabaseCleanupPreview()
+    {
+        var service = new PkmDatabaseCleanupService(saveFileProvider);
+        var session = service.Scan(PkmDatabaseImportService.ResolveConfiguredDatabasePath());
+        if (session.Analysis.Groups.Count == 0)
+        {
+            MessageBox.Show(this, "No duplicate Pokémon instances were found in the PKM database.",
+                "Clean PKM Database", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        using var preview = new PkmDatabaseCleanupPreviewWindow(session);
+        if (preview.ShowDialog(this) != DialogResult.OK)
+            return;
+        var removeCount = session.Analysis.Groups.Sum(group => group.Candidates.Count - 1);
+        var confirm = MessageBox.Show(this,
+            $"This will remove {removeCount} duplicate file(s) from the active PKM database.{Environment.NewLine}" +
+            "They will be moved to a timestamped recovery folder beside the database and can be restored manually.",
+            "Confirm PKM database cleanup", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (confirm != DialogResult.OK) return;
+        var recovery = service.Apply(session, preview.Keepers);
+        MessageBox.Show(this, $"Moved {removeCount} duplicate file(s) out of the database.{Environment.NewLine}Recovery folder: {recovery}",
+            "Clean PKM Database", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
     private async Task GenerateDatabaseImportPreview()
     {
         var service = new PkmDatabaseImportService(saveFileProvider);
@@ -1097,6 +1132,20 @@ public sealed class OrganizerWindow : Form
                     : "Generate a preview to validate eligibility and exchange capacity.");
             previewButton.Enabled = selectionLoadError is null && saveFileProvider.SAV.HasParty &&
                                     selectedTeamBoxes.Length != 0 && boxPokemon + teamCount != 0;
+            return;
+        }
+
+        if (function.SelectedIndex == 5)
+        {
+            string path;
+            try { path = PkmDatabaseImportService.ResolveConfiguredDatabasePath(); }
+            catch (Exception ex) { path = ex.Message; }
+            var available = Directory.Exists(path);
+            selectionInformation.Text = available ? $"PKM database: {path}" : "PKM database is unavailable.";
+            validationMessage.Text = available
+                ? "Scan to review exact-instance groups and choose one file to keep in each group."
+                : path;
+            previewButton.Enabled = available;
             return;
         }
 
